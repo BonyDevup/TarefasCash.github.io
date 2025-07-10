@@ -1,0 +1,23 @@
+<<<<<<< HEAD
+{
+  "start_url": "./index.html",
+  "icons": [
+    {
+      "src": "./favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}
+=======
+{
+  "start_url": "./index.html",
+  "icons": [
+    {
+      "src": "./favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}
+>>>>>>> 77dc3f7c21a101c7cef0a3601bf97b853890e299

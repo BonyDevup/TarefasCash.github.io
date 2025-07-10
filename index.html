@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Minha Lista de Tarefas</title>
+    <link rel="stylesheet" href="styles.css" />
+    <!-- Fix manifest path -->
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <div class="theme-switcher-container">
+      <label for="themeSwitcher" class="theme-switcher-label">Tema:</label>
+      <select id="themeSwitcher" class="theme-switcher">
+        <option value="default">Neon (Padrão)</option>
+        <option value="sunset">Sunset</option>
+        <option value="matrix">Matrix</option>
+        <option value="pastel">Pastel</option>
+      </select>
+    </div>
+    <div class="container">
+      <div class="cartaz main-content">
+        <h1>MINHA LISTA DE TAREFAS</h1>
+        <div class="todo-container">
+          <div class="input-container">
+            <input
+              type="text"
+              id="taskInput"
+              placeholder="Digite sua tarefa..."
+            />
+            <select id="taskCategory">
+              <option value="" disabled selected>Categoria</option>
+              <option value="trabalho">Trabalho</option>
+              <option value="pessoal">Pessoal</option>
+              <option value="estudo">Estudo</option>
+              <option value="outros">Outros</option>
+            </select>
+            <input type="date" id="taskDueDate" />
+            <button class="sync-btn">↻</button>
+            <button class="add-btn">Adicionar Tarefa</button>
+          </div>
+          <div class="tasks-controls">
+            <button class="toggle-tasks-btn">Visualizar Tarefas</button>
+          </div>
+      <!-- Modal de Tarefas -->
+      <div id="modal-tarefas" class="modal-tarefas">
+        <div class="modal-tarefas-content">
+          <span class="close-modal close-modal-tarefas">&times;</span>
+          <h3>Minhas Tarefas</h3>
+          <div class="filter-container">
+            <select id="filterStatus">
+              <option value="todas">Todas</option>
+              <option value="ativas">Ativas</option>
+              <option value="concluidas">Concluídas</option>
+            </select>
+            <select id="filterCategory">
+              <option value="">Todas Categorias</option>
+              <option value="trabalho">Trabalho</option>
+              <option value="pessoal">Pessoal</option>
+              <option value="estudo">Estudo</option>
+              <option value="outros">Outros</option>
+            </select>
+          </div>
+          <div class="tasks-view"></div>
+        </div>
+      </div>
+
+      <!-- Modal de Meta de Poupança -->
+      <div id="modal-goals" class="modal-tarefas">
+        <div class="modal-tarefas-content">
+          <span class="close-modal close-modal-goals">&times;</span>
+          <h3>Meta de Poupança</h3>
+          <div class="goals-list-modal"></div>
+        </div>
+      </div>
+        </div>
+      </div>
+
+      <div class="cartaz cartaz-4">
+        <h1>Controle Financeiro</h1>
+        <div class="financial-content">
+          <div class="financial-form">
+            <select id="transactionType">
+              <option value="receita">Adicionar Saldo</option>
+              <option value="receita">Receita</option>
+              <option value="despesa">Despesa</option>
+            </select>
+            <input
+              type="number"
+              id="valueInput"
+              placeholder="Valor"
+              step="0.01"
+            />
+            <input type="text" id="descriptionInput" placeholder="Descrição" />
+            <select id="transactionCategory">
+              <option value="" disabled selected>Categoria</option>
+              <option value="salario">Salário</option>
+              <option value="alimentacao">Alimentação</option>
+              <option value="transporte">Transporte</option>
+              <option value="lazer">Lazer</option>
+              <option value="contas">Contas</option>
+              <option value="saldo">Saldo</option>
+              <option value="outros">Outros</option>
+            </select>
+            <button class="add-transaction-btn">Adicionar</button>
+          </div>
+          <div class="financial-summary">
+            <div class="summary-item">
+              <h4>Resumo Total Transações</h4>
+              <div class="balance">R$ 0,00</div>
+            </div>
+            <div class="summary-item">
+              <h4>Saldo Poupança</h4>
+              <div class="savings-balance">R$ 0,00</div>
+            </div>
+            <div class="summary-item">
+              <h4>Saldo Total</h4>
+              <div class="transactions-balance">R$ 0,00</div>
+            </div>
+          </div>
+        </div>
+        <div class="transactions-controls">
+          <button class="toggle-transactions-btn">Consultar Transações</button>
+          <button class="toggle-goals-btn">Metas e Orçamentos</button>
+        </div>
+      </div>
+
+      <div class="cartaz cartaz-2 styled-history">
+        <h1>Histórico Financeiro</h1>
+        <div class="history-filters">
+          <select id="filterTransactionType">
+            <option value="todas">Todas</option>
+            <option value="receita">Receitas</option>
+            <option value="despesa">Despesas</option>
+            <option value="saldo">Saldos</option>
+          </select>
+          <select id="filterTransactionCategory">
+            <option value="">Todas Categorias</option>
+            <option value="salario">Salário</option>
+            <option value="alimentacao">Alimentação</option>
+            <option value="transporte">Transporte</option>
+            <option value="lazer">Lazer</option>
+            <option value="contas">Contas</option>
+            <option value="saldo">Saldo</option>
+            <option value="outros">Outros</option>
+          </select>
+        </div>
+        <div class="transactions-timeline scrollable-timeline">
+          <!-- Timeline estilizada preenchida pelo JS -->
+        </div>
+      </div>
+    </div>
+
+    <div class="cartaz-goals">
+      <div class="goals-budget-container">
+        <h3>Metas e Orçamentos</h3>
+        <div class="goals-section">
+          <h3>Meta de Poupança</h3>
+          <div class="goal-form">
+            <input
+              type="number"
+              id="goalAmount"
+              placeholder="Valor da meta"
+              step="0.01"
+            />
+            <input
+              type="text"
+              id="goalDescription"
+              placeholder="Descrição da meta"
+            />
+            <input type="date" id="goalDate" />
+          <button class="add-goal-btn">Adicionar Metas</button>
+          <button class="toggle-goals-modal-btn">Visualizar Metas de Poupança</button>
+          </div>
+          <!-- <div class="goals-list"></div> -->
+        </div>
+        <div class="budget-section">
+          <h3>Controle de Orçamento</h3>
+          <div class="budget-form">
+            <select id="budgetCategory">
+              <option value="" disabled selected>Categoria</option>
+              <option value="alimentacao">Alimentação</option>
+              <option value="transporte">Transporte</option>
+              <option value="lazer">Lazer</option>
+              <option value="contas">Contas</option>
+              <option value="outros">Outros</option>
+            </select>
+            <input
+              type="number"
+              id="budgetLimit"
+              placeholder="Limite"
+              step="0.01"
+            />
+            <button class="add-budget-btn">Definir Limite</button>
+          </div>
+          <div class="budget-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="social-icons">
+      <a href="https://wa.me/123456789" class="social-icon whatsapp">📱</a>
+      <a href="https://youtube.com" class="social-icon youtube">📺</a>
+      <a href="https://facebook.com" class="social-icon facebook">👤</a>
+      <a href="https://instagram.com" class="social-icon instagram">📷</a>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
