@@ -8,6 +8,7 @@
     <!-- Fix manifest path -->
     <link rel="manifest" href="manifest.json" />
     <link rel="icon" href="data:," />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
     <div class="theme-switcher-container">
@@ -123,6 +124,7 @@
         <div class="transactions-controls">
           <button class="toggle-transactions-btn">Consultar Transações</button>
           <button class="toggle-goals-btn">Metas e Orçamentos</button>
+          <button class="toggle-goals-btn">Gráficos e Estatícas</button>
         </div>
       </div>
 
@@ -195,6 +197,50 @@
             <button class="add-budget-btn">Definir Limite</button>
           </div>
           <div class="budget-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Gráficos e Estatísticas -->
+    <div id="modal-graphics" class="modal-graphics">
+      <div class="modal-graphics-content">
+        <span class="close-modal-graphics">&times;</span>
+        <div class="graphics-container" style="padding:12px; max-width:320px;">
+          <h3 style="font-size:1.1em; margin-bottom:8px;">Gráficos e Estatísticas</h3>
+          <div class="graphics-section" style="margin-bottom:10px;">
+            <h4 style="font-size:1em; margin-bottom:6px;">Resumo Visual</h4>
+            <div>
+              <canvas id="financeChart" width="220" height="120" style="max-width:100%;"></canvas>
+            </div>
+            <div class="graphics-filters" style="font-size:0.95em; margin-top:6px;">
+              <label for="graphicsType">Tipo:</label>
+              <select id="graphicsType">
+                <option value="bar">Barra</option>
+                <option value="pie">Pizza</option>
+                <option value="line">Linha</option>
+              </select>
+              <label for="graphicsPeriod">Período:</label>
+              <select id="graphicsPeriod">
+                <option value="mes">Mês</option>
+                <option value="ano">Ano</option>
+              </select>
+              <button class="update-graphics-btn">Atualizar</button>
+            </div>
+          </div>
+          <div class="statistics-section" style="font-size:0.95em;">
+            <h4 style="font-size:1em; margin-bottom:6px;">Estatísticas Gerais</h4>
+            <ul class="statistics-list" style="padding-left:16px;">
+              <li>Total de Receitas: <span id="stat-receitas">R$ 0,00</span></li>
+              <li>Total de Despesas: <span id="stat-despesas">R$ 0,00</span></li>
+              <li>Categoria Mais Gasta: <span id="stat-categoria">-</span></li>
+              <li>Meta de Poupança: <span id="stat-meta">R$ 0,00</span></li>
+              <li>Média das Despesas: <span id="stat-media-despesas">R$ 0,00</span></li>
+              <li>Qtd. de Transações: <span id="stat-qtd-transacoes">0</span></li>
+              <li>Receitas vs Despesas: <span id="stat-percentual">0%</span></li>
+              <li>Maior Despesa: <span id="stat-maior-despesa">R$ 0,00</span></li>
+              <li>Menor Despesa: <span id="stat-menor-despesa">R$ 0,00</span></li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
