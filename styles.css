@@ -1333,3 +1333,87 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-size: 1.5em;
   cursor: pointer;
 }
+
+.statistics-section {
+  background: #23272f;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  margin-top: 10px;
+}
+
+.statistics-section h4 {
+  font-size: 1.2em;
+  color: #00eaff;
+  margin-bottom: 12px;
+  letter-spacing: 1px;
+  font-weight: 700;
+  text-shadow: 0 1px 4px #222;
+}
+
+.statistics-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.statistics-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid #2e3440;
+  font-size: 1.05em;
+  color: #e0e0e0;
+  font-weight: 500;
+}
+
+.statistics-list li:last-child {
+  border-bottom: none;
+}
+
+.statistics-list span {
+  font-weight: 700;
+  color: #00ff99;
+  background: #181c22;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 1em;
+  box-shadow: 0 1px 4px #222;
+  margin-left: 8px;
+  transition: background 0.2s;
+}
+
+.statistics-list li:hover span {
+  background: #00eaff;
+  color: #181c22;
+}
+.stat-icon {
+  margin-right: 8px;
+  color: #00eaff;
+  font-size: 1.1em;
+  filter: drop-shadow(0 0 4px #00eaff);
+  transition: color 0.2s;
+}
+.statistics-list li:hover .stat-icon {
+  color: #00ff99;
+}
+.statistics-list li[title] {
+  cursor: help;
+}
+.substats {
+  background: #181c22;
+  border-radius: 8px;
+  margin-top: 6px;
+  padding: 8px 12px;
+  font-size: 0.97em;
+  color: #baffee;
+  box-shadow: 0 1px 6px #222;
+  transition: all 0.2s;
+}
+.substats div {
+  margin-bottom: 4px;
+}
+.substats div:last-child {
+  margin-bottom: 0;
+}

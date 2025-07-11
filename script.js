@@ -779,30 +779,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
 const toggleGraphicsBtn = document.querySelectorAll('.toggle-goals-btn');
 const cartazGoals = document.querySelector('.cartaz-goals');
-const cartazGraphics = document.querySelector('.cartaz-graphics');
 
 // Alterna entre Metas/Orçamentos e Gráficos/Estatísticas
 toggleGraphicsBtn.forEach(btn => {
   btn.addEventListener('click', function() {
     if (btn.textContent.includes('Gráficos')) {
-      const isVisible = cartazGraphics.style.display === 'block';
-      cartazGraphics.style.display = isVisible ? 'none' : 'block';
-      cartazGoals.style.display = 'none';
-      btn.textContent = isVisible ? 'Gráficos e Estatísticas' : 'Ocultar Gráficos';
-      if (!isVisible) {
-        updateStatistics();
-        renderFinanceChart();
-      }
-    } else if (btn.textContent.includes('Metas')) {
-      const isVisible = cartazGoals.style.display === 'block';
-      cartazGoals.style.display = isVisible ? 'none' : 'block';
-      cartazGraphics.style.display = 'none';
-      btn.textContent = isVisible ? 'Metas e Orçamentos' : 'Ocultar Metas';
-      if (!isVisible) {
-        updateGoalsList();
-        updateBudgetList();
-      }
+      graphicsModal.style.display = 'block';
+      updateStatistics();
+      renderFinanceChart();
     }
+    // ... restante do código ...
   });
 });
 
@@ -899,37 +885,128 @@ function updateStatistics() {
   document.getElementById('stat-percentual').textContent = `${percentual}%`;
   document.getElementById('stat-maior-despesa').textContent = `R$ ${maiorDespesa.toFixed(2)}`;
   document.getElementById('stat-menor-despesa').textContent = `R$ ${menorDespesa.toFixed(2)}`;
+
+  // Animação de contagem
+  animateValue('stat-receitas', 0, receitas, 800, 'R$ ');
+  animateValue('stat-despesas', 0, despesas, 800, 'R$ ');
+  animateValue('stat-media-despesas', 0, mediaDespesas, 800, 'R$ ');
+  animateValue('stat-maior-despesa', 0, maiorDespesa, 800, 'R$ ');
+  animateValue('stat-menor-despesa', 0, menorDespesa, 800, 'R$ ');
 }
 
-// Chama ao abrir gráficos
-document.querySelector('.toggle-goals-btn:last-child').addEventListener('click', () => {
-  updateStatistics();
-  renderFinanceChart();
+// Função para atualizar subsetatísticas
+function updateSubstats() {
+  // Receitas
+  const receitasArray = transactions.filter(t => t.type === 'receita').map(t => t.value);
+  const receitaMedia = receitasArray.length ? receitasArray.reduce((a,b)=>a+b,0)/receitasArray.length : 0;
+  const receitaMaior = receitasArray.length ? Math.max(...receitasArray) : 0;
+  const receitaMenor = receitasArray.length ? Math.min(...receitasArray) : 0;
+  const receitaQtd = receitasArray.length;
+  document.getElementById('substat-receita-media').textContent = `R$ ${receitaMedia.toFixed(2)}`;
+  document.getElementById('substat-receita-maior').textContent = `R$ ${receitaMaior.toFixed(2)}`;
+  document.getElementById('substat-receita-menor').textContent = `R$ ${receitaMenor.toFixed(2)}`;
+  document.getElementById('substat-receita-qtd').textContent = receitaQtd;
+
+  // Despesas
+  const despesasArray = transactions.filter(t => t.type === 'despesa').map(t => t.value);
+  const despesaMedia = despesasArray.length ? despesasArray.reduce((a,b)=>a+b,0)/despesasArray.length : 0;
+  const despesaMaior = despesasArray.length ? Math.max(...despesasArray) : 0;
+  const despesaMenor = despesasArray.length ? Math.min(...despesasArray) : 0;
+  const despesaQtd = despesasArray.length;
+  document.getElementById('substat-despesa-media').textContent = `R$ ${despesaMedia.toFixed(2)}`;
+  document.getElementById('substat-despesa-maior').textContent = `R$ ${despesaMaior.toFixed(2)}`;
+  document.getElementById('substat-despesa-menor').textContent = `R$ ${despesaMenor.toFixed(2)}`;
+  document.getElementById('substat-despesa-qtd').textContent = despesaQtd;
+
+  // Categoria mais gasta
+  let categoriaMaisGasta = '-';
+  let valorCategoria = 0;
+  let pctCategoria = 0;
+  if (despesasArray.length > 0) {
+    const categorias = {};
+    transactions.filter(t => t.type === 'despesa').forEach(t => {
+      categorias[t.category] = (categorias[t.category] || 0) + t.value;
+    });
+    const [cat, val] = Object.entries(categorias).sort((a, b) => b[1] - a[1])[0];
+    categoriaMaisGasta = cat;
+    valorCategoria = val;
+    pctCategoria = (val / despesasArray.reduce((a, b) => a + b, 0)) * 100;
+  }
+  document.getElementById('substat-categoria-valor').textContent = `R$ ${valorCategoria.toFixed(2)}`;
+  document.getElementById('substat-categoria-pct').textContent = `${pctCategoria.toFixed(1)}%`;
+
+  // Metas
+  const metasQtd = goals.length;
+  const metasMedia = metasQtd ? goals.reduce((a, g) => a + (parseFloat(g.amount) || 0), 0) / metasQtd : 0;
+  document.getElementById('substat-meta-qtd').textContent = metasQtd;
+  document.getElementById('substat-meta-media').textContent = `R$ ${metasMedia.toFixed(2)}`;
+
+  // Média das despesas
+  document.getElementById('substat-media-despesas-qtd').textContent = despesasArray.length;
+
+  // Qtd. de transações
+  const qtdReceitas = receitasArray.length;
+  const qtdDespesas = despesasArray.length;
+  const qtdSaldo = transactions.filter(t => t.type === 'saldo').length;
+  document.getElementById('substat-qtd-receitas').textContent = qtdReceitas;
+  document.getElementById('substat-qtd-despesas').textContent = qtdDespesas;
+  document.getElementById('substat-qtd-saldo').textContent = qtdSaldo;
+
+  // Percentual receitas vs despesas
+  const receitas = receitasArray.reduce((a, b) => a + b, 0);
+  const despesas = despesasArray.reduce((a, b) => a + b, 0);
+  document.getElementById('substat-percentual-receitas').textContent = `R$ ${receitas.toFixed(2)}`;
+  document.getElementById('substat-percentual-despesas').textContent = `R$ ${despesas.toFixed(2)}`;
+}
+
+document.querySelectorAll('.stat-item').forEach(item => {
+  item.addEventListener('click', function(e) {
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A') return;
+    const stat = item.getAttribute('data-stat');
+    const substats = document.getElementById(`substats-${stat}`);
+    if (substats) {
+      const isVisible = substats.style.display === 'block';
+      document.querySelectorAll('.substats').forEach(s => s.style.display = 'none');
+      substats.style.display = isVisible ? 'none' : 'block';
+      if (!isVisible) updateSubstats();
+    }
+  });
 });
 
-const graphicsModal = document.getElementById('modal-graphics');
-const closeGraphicsModalBtn = document.querySelector('.close-modal-graphics');
-const graphicsBtn = Array.from(document.querySelectorAll('.toggle-goals-btn')).find(btn => btn.textContent.includes('Gráficos'));
-
-if (graphicsBtn) {
-  graphicsBtn.addEventListener('click', () => {
-    graphicsModal.style.display = 'block';
-    updateStatistics();
-    renderFinanceChart();
-  });
+function animateValue(id, start, end, duration, prefix = '', suffix = '') {
+  const obj = document.getElementById(id);
+  if (!obj) return;
+  let startTimestamp = null;
+  const step = (timestamp) => {
+    if (!startTimestamp) startTimestamp = timestamp;
+    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+    const value = start + (end - start) * progress;
+    obj.textContent = prefix + value.toFixed(2) + suffix;
+    if (progress < 1) {
+      window.requestAnimationFrame(step);
+    }
+  };
+  window.requestAnimationFrame(step);
 }
 
-if (closeGraphicsModalBtn) {
+const closeGraphicsModalBtn = document.querySelector('.close-modal-graphics');
+const graphicsModal = document.getElementById('modal-graphics');
+
+if (closeGraphicsModalBtn && graphicsModal) {
   closeGraphicsModalBtn.addEventListener('click', () => {
     graphicsModal.style.display = 'none';
+    // Opcional: destruir o gráfico ao fechar
     if (window.financeChartInstance) window.financeChartInstance.destroy();
   });
 }
 
-// Fecha modal ao clicar fora do conteúdo
-graphicsModal.addEventListener('click', (e) => {
-  if (e.target === graphicsModal) {
-    graphicsModal.style.display = 'none';
-    if (window.financeChartInstance) window.financeChartInstance.destroy();
-  }
-});
+// Também fecha ao clicar fora do conteúdo do modal
+if (graphicsModal) {
+  graphicsModal.addEventListener('click', (e) => {
+    if (e.target === graphicsModal) {
+      graphicsModal.style.display = 'none';
+      if (window.financeChartInstance) window.financeChartInstance.destroy();
+    }
+  });
+}
+
