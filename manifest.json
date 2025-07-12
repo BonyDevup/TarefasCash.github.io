@@ -12,10 +12,7 @@
   "description": "Gerenciador de Tarefas",
   "version": "1.0.0",
   "manifest_version": 2,
-  "background": {
-    "scripts": ["background.js"],
-    "persistent": false
-  },
+  "background": {"scripts": ["background.js"], "persistent": false},
   "permissions": [
     "storage"
   ],
