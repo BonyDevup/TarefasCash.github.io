@@ -22,7 +22,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const taskInput = document.getElementById("taskInput");
   const taskDueDate = document.getElementById("taskDueDate");
   const addBtn = document.querySelector(".add-btn");
-  const syncBtn = document.querySelector(".sync-btn");
   const tasksViews = document.querySelectorAll(".tasks-view"); // Alterado para selecionar todos os .tasks-view
   const filterStatus = document.getElementById("filterStatus");
   const filterCategory = document.getElementById("filterCategory");
@@ -696,22 +695,8 @@ document.addEventListener("DOMContentLoaded", () => {
     updateBudgetList();
   });
 
-  // Remove everything after the closing bracket of DOMContentLoaded
-  syncBtn.addEventListener("click", () => {
-    syncBtn.style.transform = "rotate(360deg)";
-    setTimeout(() => {
-      syncBtn.style.transform = "rotate(0)";
-      updateTasksView();
-    }, 1000);
-  });
-
-
-  // Removido botão de tarefas, todas funções agora no botão de metas
-
   filterStatus.addEventListener("change", updateTasksView);
   filterCategory.addEventListener("change", updateTasksView);
-
-  // Removido: Visualizar tarefas com Enter
 
   addTransactionBtn.addEventListener("click", addTransaction);
 
@@ -784,11 +769,10 @@ const cartazGoals = document.querySelector('.cartaz-goals');
 toggleGraphicsBtn.forEach(btn => {
   btn.addEventListener('click', function() {
     if (btn.textContent.includes('Gráficos')) {
-      graphicsModal.style.display = 'block';
+      graphicsModal.style.display = 'flex';
       updateStatistics();
       renderFinanceChart();
     }
-    // ... restante do código ...
   });
 });
 

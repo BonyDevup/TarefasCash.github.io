@@ -72,6 +72,10 @@ body {
   background: var(--main-bg);
   color: var(--main-text);
   transition: background 0.4s, color 0.4s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 .transaction-description {
   display: block;
@@ -82,6 +86,30 @@ body {
   text-shadow: 0 0 6px var(--neon-blue);
   word-break: break-word;
 }
+
+.container-textData{
+  position: relative;
+  top: 43px;
+  right: 50px;
+  pointer-events: none
+  
+}
+
+.textData{
+margin: 0%;
+  padding: 0%;
+  pointer-events: none
+}
+
+.input-container input[type="text"] {
+  width: 90%;
+} 
+
+.input-container select {
+  width: 100%;
+} 
+
+
 /* Histórico Financeiro Estilizado */
 .styled-history {
   background: rgba(0, 0, 0, 0.85);
@@ -283,12 +311,9 @@ body {
 }
 
 .container {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 20px;
-  padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: auto;
 }
 
 .cartaz {
@@ -302,7 +327,59 @@ body {
 .main-content {
   grid-column: 1;
   text-align: center;
-  width: 152%;
+  width: 90%;
+}
+
+.container-btns {
+  position: absolute;
+}
+
+.btn-esqr {
+  background: #000;
+  border: 2px solid var(--neon-blue);
+  border-top-left-radius: 10px;
+  border-end-start-radius: 10px;
+  padding: 8px;
+  width: 20px;
+  height: 250px;
+  cursor: pointer;
+  position: relative;
+  top: 100px;
+  right: 315%;
+}
+
+.btn-esqr::before {
+  content: '\25C0'; /* Código Unicode para seta esquerda */
+  color: var(--neon-blue);
+  font-size: 20px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.btn-dir {
+  background: #000;
+  border: 2px solid var(--neon-blue);
+  border-top-right-radius: 10px;
+  border-end-end-radius: 10px;
+  padding: 8px;
+  width: 20px;
+  height: 250px;
+  cursor: pointer;
+  position: relative;
+  top: 100px;
+  left: 315%;
+}
+
+.btn-dir::before {
+  content: '\25B6'; /* Código Unicode para seta direita */
+  color: var(--neon-blue);
+  font-size: 20px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .todo-container {
@@ -326,6 +403,7 @@ h1 {
   justify-content: center;
   align-items: center;
 }
+
 
 input[type="text"],
 input[type="number"],
@@ -357,8 +435,6 @@ button:hover {
 }
 
 .cartaz-4 {
-  grid-column: 1 / -1;
-  position: relative;
   bottom: 0;
   width: 100%;
   left: 0;
@@ -442,6 +518,7 @@ button:hover {
   position: relative;
   bottom: 0;
   margin-top: 20px;
+  width: 100%;
 }
 
 .cartaz-2.visible {
@@ -500,6 +577,10 @@ button:hover {
 
 .add-transaction-btn {
   min-width: 120px;
+}
+
+.add-btn{
+  width: 100%;
 }
 
 .tasks-list {
@@ -852,9 +933,22 @@ button:hover {
 }
 
 @media screen and (max-width: 1024px) {
+  body{
+    width: 100%;
+  }
+  
   .container {
     grid-template-columns: 1fr;
     padding: 15px;
+     display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 85%;
+  }
+
+  .main-content {
+  grid-column: 1;
+  text-align: center;
   }
 
   .cartaz-2 {
@@ -864,6 +958,10 @@ button:hover {
 
   .cartaz-2.visible {
     max-height: none;
+  }
+
+  .cartaz-4 {
+    margin-top: 20px;
   }
 }
 
@@ -887,7 +985,6 @@ button:hover {
   .budget-form input,
   .budget-form select,
   .budget-form button {
-    width: 100%;
     min-width: auto;
   }
 
@@ -1236,7 +1333,10 @@ input[type="date"] {
   border-radius: 5px;
   color: white;
   font-size: 16px;
+  width: 90.145%;
+  height: 18px;
 }
+
 input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
   cursor: pointer;
@@ -1312,10 +1412,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 /* Modal de Gráficos */
 .modal-graphics {
   display: none;
-  position: fixed;
+  position: absolute;
   z-index: 9999;
   left: 0; top: 0;
-  width: 100%; height: 100%;
+  width: 100%; height: auto;
   background: rgba(0,0,0,0.5);
 }
 .modal-graphics-content {
@@ -1340,6 +1440,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   padding: 16px 18px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.12);
   margin-top: 10px;
+  width: 100%;
+  height: 100%;
 }
 
 .statistics-section h4 {
