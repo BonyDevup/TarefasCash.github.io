@@ -732,32 +732,6 @@ document.addEventListener("DOMContentLoaded", () => {
     budgetCategory.value = "";
     budgetLimit.value = "";
   }
-
-  // Add at the end of the file
-  document.addEventListener("DOMContentLoaded", () => {
-    // Initialize event listeners
-    addBtn.addEventListener("click", () => {
-      const taskText = taskInput.value.trim();
-      if (taskText) {
-        addTask(taskText);
-        taskInput.value = "";
-      }
-    });
-
-    addTransactionBtn.addEventListener("click", addTransaction);
-    addGoalBtn.addEventListener("click", addGoal);
-    addBudgetBtn.addEventListener("click", addBudget);
-
-    toggleTransactionsBtn.addEventListener("click", () => {
-      cartaz2.classList.toggle("visible");
-      toggleTransactionsBtn.textContent = cartaz2.classList.contains("visible")
-        ? "Ocultar Transações"
-        : "Consultar Transações";
-    });
-
-    toggleGoalsBtn.addEventListener("click", () => {
-      cartazGoals.classList.toggle("visible");
-    });
     addBtn.addEventListener("click", () => {
       const taskText = taskInput.value.trim();
       if (taskText) {
@@ -792,77 +766,86 @@ document.addEventListener("DOMContentLoaded", () => {
     updateBudgetList();
     
     console.log('✅ Aplicação inicializada!');
-  });
+    
+    // Event listeners que estavam fora do DOMContentLoaded
+    filterStatus.addEventListener("change", updateTasksView);
+    filterCategory.addEventListener("change", updateTasksView);
+    addTransactionBtn.addEventListener("click", addTransaction);
 
-  filterStatus.addEventListener("change", updateTasksView);
-  filterCategory.addEventListener("change", updateTasksView);
+    valueInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        addTransaction();
+      }
+    });
 
-  addTransactionBtn.addEventListener("click", addTransaction);
+    toggleTransactionsBtn.addEventListener("click", () => {
+      const isVisible = cartaz2.classList.contains("visible");
+      cartaz2.classList.toggle("visible");
+      toggleTransactionsBtn.textContent = isVisible
+        ? "Consultar Transações"
+        : "Ocultar Consulta";
 
-  valueInput.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-      addTransaction();
-    }
-  });
+      if (!isVisible) {
+        updateTransactionsView();
+      }
+    });
 
-  toggleTransactionsBtn.addEventListener("click", () => {
-    const isVisible = cartaz2.classList.contains("visible");
-    cartaz2.classList.toggle("visible");
-    toggleTransactionsBtn.textContent = isVisible
-      ? "Consultar Transações"
-      : "Ocultar Consulta";
-
-    if (!isVisible) {
-      updateTransactionsView();
-    }
-  });
-
-  filterTransactionType.addEventListener("change", updateTransactionsView);
-  filterTransactionCategory.addEventListener("change", updateTransactionsView);
-
-  addGoalBtn.addEventListener("click", () => {
-    addGoal();
-  });
-
-  goalAmount.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-      goalDescription.focus();
-    }
-  });
-
-  goalDescription.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-      goalDate.focus();
-    }
-  });
-
-  goalDate.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
+    filterTransactionType.addEventListener("change", updateTransactionsView);
+    filterTransactionCategory.addEventListener("change", updateTransactionsView);
+    
+    // Adicionar todos os outros event listeners
+    addGoalBtn.addEventListener("click", () => {
       addGoal();
-    }
+    });
+
+    goalAmount.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        goalDescription.focus();
+      }
+    });
+
+    goalDescription.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        goalDate.focus();
+      }
+    });
+
+    goalDate.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        addGoal();
+      }
+    });
+
+    addBudgetBtn.addEventListener("click", addBudget);
+
+    toggleGoalsBtn.addEventListener("click", () => {
+      const isVisible = cartazGoals.classList.contains("visible");
+      cartazGoals.classList.toggle("visible");
+      toggleGoalsBtn.textContent = isVisible
+        ? "Metas e Orçamentos"
+        : "Ocultar Metas";
+
+      if (!isVisible) {
+        updateGoalsList();
+        updateBudgetList();
+      }
+    });
+
+    // Inicializar gráficos e estatísticas
+    const toggleGraphicsBtn = document.querySelectorAll('.toggle-goals-btn');
+
+    toggleGraphicsBtn.forEach(btn => {
+      btn.addEventListener('click', function() {
+        if (btn.textContent.includes('Gráficos')) {
+          graphicsModal.style.display = 'flex';
+          updateStatistics();
+          renderFinanceChart();
+        }
+      });
+    });
   });
 
-  addBudgetBtn.addEventListener("click", addBudget);
-
-  toggleGoalsBtn.addEventListener("click", () => {
-    const isVisible = cartazGoals.classList.contains("visible");
-    cartazGoals.classList.toggle("visible");
-    toggleGoalsBtn.textContent = isVisible
-      ? "Metas e Orçamentos"
-      : "Ocultar Metas";
-
-    if (!isVisible) {
-      updateGoalsList();
-      updateBudgetList();
-    }
-  });
-
-  // Inicializa a visualização das tarefas ao carregar a página
-  updateTasksView();
-});
-
-const toggleGraphicsBtn = document.querySelectorAll('.toggle-goals-btn');
-const cartazGoals = document.querySelector('.cartaz-goals');
+// Variáveis já declaradas no DOMContentLoaded
 
 // Alterna entre Metas/Orçamentos e Gráficos/Estatísticas
 toggleGraphicsBtn.forEach(btn => {
