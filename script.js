@@ -833,6 +833,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Inicializar gráficos e estatísticas
     const toggleGraphicsBtn = document.querySelectorAll('.toggle-goals-btn');
+    const graphicsModal = document.getElementById('modal-graphics');
 
     toggleGraphicsBtn.forEach(btn => {
       btn.addEventListener('click', function() {
@@ -843,236 +844,229 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     });
-  });
 
-// Variáveis já declaradas no DOMContentLoaded
+    // Função para renderizar o gráfico com dados reais
+    function renderFinanceChart(type = null) {
+      const chartType = type || document.getElementById('graphicsType').value;
+      const ctx = document.getElementById('financeChart').getContext('2d');
 
-// Alterna entre Metas/Orçamentos e Gráficos/Estatísticas
-toggleGraphicsBtn.forEach(btn => {
-  btn.addEventListener('click', function() {
-    if (btn.textContent.includes('Gráficos')) {
-      graphicsModal.style.display = 'flex';
-      updateStatistics();
-      renderFinanceChart();
-    }
-  });
-});
+      // Calcula os valores reais das finanças
+      const receitas = transactions
+        .filter(t => t.type === 'receita')
+        .reduce((sum, t) => sum + t.value, 0);
+      const despesas = transactions
+        .filter(t => t.type === 'despesa')
+        .reduce((sum, t) => sum + t.value, 0);
+      const poupanca = transactions
+        .filter(t => t.type === 'saldo' && t.category === 'saldo')
+        .reduce((sum, t) => sum + t.value, 0);
 
-// Função para renderizar o gráfico com dados reais
-function renderFinanceChart(type = null) {
-  const chartType = type || document.getElementById('graphicsType').value;
-  const ctx = document.getElementById('financeChart').getContext('2d');
-
-  // Calcula os valores reais das finanças
-  const receitas = transactions
-    .filter(t => t.type === 'receita')
-    .reduce((sum, t) => sum + t.value, 0);
-  const despesas = transactions
-    .filter(t => t.type === 'despesa')
-    .reduce((sum, t) => sum + t.value, 0);
-  const poupanca = transactions
-    .filter(t => t.type === 'saldo' && t.category === 'saldo')
-    .reduce((sum, t) => sum + t.value, 0);
-
-  // Destroi gráfico anterior se existir
-  if (window.financeChartInstance) window.financeChartInstance.destroy();
-  window.financeChartInstance = new Chart(ctx, {
-    type: chartType,
-    data: {
-      labels: ['Receitas', 'Despesas', 'Poupança'],
-      datasets: [{
-        label: 'Valores',
-        data: [receitas, despesas, poupanca],
-        backgroundColor: ['#4caf50', '#f44336', '#2196f3'],
-      }]
-    },
-    options: {
-      responsive: false,
-      plugins: {
-        legend: { display: false }
-      }
-    }
-  });
-}
-
-// Atualiza gráfico ao trocar tipo/período
-document.getElementById('graphicsType').addEventListener('change', e => {
-  renderFinanceChart(e.target.value);
-});
-document.querySelector('.update-graphics-btn').addEventListener('click', () => {
-  renderFinanceChart();
-});
-
-// Atualiza estatísticas com dados reais
-function updateStatistics() {
-  const receitas = transactions
-    .filter(t => t.type === 'receita')
-    .reduce((sum, t) => sum + t.value, 0);
-  const despesasArray = transactions
-    .filter(t => t.type === 'despesa')
-    .map(t => t.value);
-  const despesas = despesasArray.reduce((sum, v) => sum + v, 0);
-
-  // Categoria mais gasta
-  let categoriaMaisGasta = '-';
-  if (despesas > 0) {
-    const categorias = {};
-    transactions
-      .filter(t => t.type === 'despesa')
-      .forEach(t => {
-        categorias[t.category] = (categorias[t.category] || 0) + t.value;
+      // Destroi gráfico anterior se existir
+      if (window.financeChartInstance) window.financeChartInstance.destroy();
+      window.financeChartInstance = new Chart(ctx, {
+        type: chartType,
+        data: {
+          labels: ['Receitas', 'Despesas', 'Poupança'],
+          datasets: [{
+            label: 'Valores',
+            data: [receitas, despesas, poupanca],
+            backgroundColor: ['#4caf50', '#f44336', '#2196f3'],
+          }]
+        },
+        options: {
+          responsive: false,
+          plugins: {
+            legend: { display: false }
+          }
+        }
       });
-    categoriaMaisGasta = Object.entries(categorias)
-      .sort((a, b) => b[1] - a[1])[0][0];
-  }
-
-  // Meta de poupança (soma das metas)
-  const meta = goals.reduce((sum, g) => sum + (parseFloat(g.amount) || 0), 0);
-
-  // Média das despesas
-  const mediaDespesas = despesasArray.length > 0 ? despesas / despesasArray.length : 0;
-
-  // Quantidade de transações
-  const qtdTransacoes = transactions.length;
-
-  // Percentual receitas vs despesas
-  const percentual = receitas > 0 ? ((despesas / receitas) * 100).toFixed(1) : 0;
-
-  // Maior e menor despesa
-  const maiorDespesa = despesasArray.length > 0 ? Math.max(...despesasArray) : 0;
-  const menorDespesa = despesasArray.length > 0 ? Math.min(...despesasArray) : 0;
-
-  document.getElementById('stat-receitas').textContent = `R$ ${receitas.toFixed(2)}`;
-  document.getElementById('stat-despesas').textContent = `R$ ${despesas.toFixed(2)}`;
-  document.getElementById('stat-categoria').textContent = categoriaMaisGasta;
-  document.getElementById('stat-meta').textContent = `R$ ${meta.toFixed(2)}`;
-  document.getElementById('stat-media-despesas').textContent = `R$ ${mediaDespesas.toFixed(2)}`;
-  document.getElementById('stat-qtd-transacoes').textContent = qtdTransacoes;
-  document.getElementById('stat-percentual').textContent = `${percentual}%`;
-  document.getElementById('stat-maior-despesa').textContent = `R$ ${maiorDespesa.toFixed(2)}`;
-  document.getElementById('stat-menor-despesa').textContent = `R$ ${menorDespesa.toFixed(2)}`;
-
-  // Animação de contagem
-  animateValue('stat-receitas', 0, receitas, 800, 'R$ ');
-  animateValue('stat-despesas', 0, despesas, 800, 'R$ ');
-  animateValue('stat-media-despesas', 0, mediaDespesas, 800, 'R$ ');
-  animateValue('stat-maior-despesa', 0, maiorDespesa, 800, 'R$ ');
-  animateValue('stat-menor-despesa', 0, menorDespesa, 800, 'R$ ');
-}
-
-// Função para atualizar subsetatísticas
-function updateSubstats() {
-  // Receitas
-  const receitasArray = transactions.filter(t => t.type === 'receita').map(t => t.value);
-  const receitaMedia = receitasArray.length ? receitasArray.reduce((a,b)=>a+b,0)/receitasArray.length : 0;
-  const receitaMaior = receitasArray.length ? Math.max(...receitasArray) : 0;
-  const receitaMenor = receitasArray.length ? Math.min(...receitasArray) : 0;
-  const receitaQtd = receitasArray.length;
-  document.getElementById('substat-receita-media').textContent = `R$ ${receitaMedia.toFixed(2)}`;
-  document.getElementById('substat-receita-maior').textContent = `R$ ${receitaMaior.toFixed(2)}`;
-  document.getElementById('substat-receita-menor').textContent = `R$ ${receitaMenor.toFixed(2)}`;
-  document.getElementById('substat-receita-qtd').textContent = receitaQtd;
-
-  // Despesas
-  const despesasArray = transactions.filter(t => t.type === 'despesa').map(t => t.value);
-  const despesaMedia = despesasArray.length ? despesasArray.reduce((a,b)=>a+b,0)/despesasArray.length : 0;
-  const despesaMaior = despesasArray.length ? Math.max(...despesasArray) : 0;
-  const despesaMenor = despesasArray.length ? Math.min(...despesasArray) : 0;
-  const despesaQtd = despesasArray.length;
-  document.getElementById('substat-despesa-media').textContent = `R$ ${despesaMedia.toFixed(2)}`;
-  document.getElementById('substat-despesa-maior').textContent = `R$ ${despesaMaior.toFixed(2)}`;
-  document.getElementById('substat-despesa-menor').textContent = `R$ ${despesaMenor.toFixed(2)}`;
-  document.getElementById('substat-despesa-qtd').textContent = despesaQtd;
-
-  // Categoria mais gasta
-  let categoriaMaisGasta = '-';
-  let valorCategoria = 0;
-  let pctCategoria = 0;
-  if (despesasArray.length > 0) {
-    const categorias = {};
-    transactions.filter(t => t.type === 'despesa').forEach(t => {
-      categorias[t.category] = (categorias[t.category] || 0) + t.value;
-    });
-    const [cat, val] = Object.entries(categorias).sort((a, b) => b[1] - a[1])[0];
-    categoriaMaisGasta = cat;
-    valorCategoria = val;
-    pctCategoria = (val / despesasArray.reduce((a, b) => a + b, 0)) * 100;
-  }
-  document.getElementById('substat-categoria-valor').textContent = `R$ ${valorCategoria.toFixed(2)}`;
-  document.getElementById('substat-categoria-pct').textContent = `${pctCategoria.toFixed(1)}%`;
-
-  // Metas
-  const metasQtd = goals.length;
-  const metasMedia = metasQtd ? goals.reduce((a, g) => a + (parseFloat(g.amount) || 0), 0) / metasQtd : 0;
-  document.getElementById('substat-meta-qtd').textContent = metasQtd;
-  document.getElementById('substat-meta-media').textContent = `R$ ${metasMedia.toFixed(2)}`;
-
-  // Média das despesas
-  document.getElementById('substat-media-despesas-qtd').textContent = despesasArray.length;
-
-  // Qtd. de transações
-  const qtdReceitas = receitasArray.length;
-  const qtdDespesas = despesasArray.length;
-  const qtdSaldo = transactions.filter(t => t.type === 'saldo').length;
-  document.getElementById('substat-qtd-receitas').textContent = qtdReceitas;
-  document.getElementById('substat-qtd-despesas').textContent = qtdDespesas;
-  document.getElementById('substat-qtd-saldo').textContent = qtdSaldo;
-
-  // Percentual receitas vs despesas
-  const receitas = receitasArray.reduce((a, b) => a + b, 0);
-  const despesas = despesasArray.reduce((a, b) => a + b, 0);
-  document.getElementById('substat-percentual-receitas').textContent = `R$ ${receitas.toFixed(2)}`;
-  document.getElementById('substat-percentual-despesas').textContent = `R$ ${despesas.toFixed(2)}`;
-}
-
-document.querySelectorAll('.stat-item').forEach(item => {
-  item.addEventListener('click', function(e) {
-    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A') return;
-    const stat = item.getAttribute('data-stat');
-    const substats = document.getElementById(`substats-${stat}`);
-    if (substats) {
-      const isVisible = substats.style.display === 'block';
-      document.querySelectorAll('.substats').forEach(s => s.style.display = 'none');
-      substats.style.display = isVisible ? 'none' : 'block';
-      if (!isVisible) updateSubstats();
     }
-  });
-});
 
-function animateValue(id, start, end, duration, prefix = '', suffix = '') {
-  const obj = document.getElementById(id);
-  if (!obj) return;
-  let startTimestamp = null;
-  const step = (timestamp) => {
-    if (!startTimestamp) startTimestamp = timestamp;
-    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-    const value = start + (end - start) * progress;
-    obj.textContent = prefix + value.toFixed(2) + suffix;
-    if (progress < 1) {
+    // Event listeners para gráficos
+    document.getElementById('graphicsType').addEventListener('change', e => {
+      renderFinanceChart(e.target.value);
+    });
+    document.querySelector('.update-graphics-btn').addEventListener('click', () => {
+      renderFinanceChart();
+    });
+
+    // Atualiza estatísticas com dados reais
+    function updateStatistics() {
+      const receitas = transactions
+        .filter(t => t.type === 'receita')
+        .reduce((sum, t) => sum + t.value, 0);
+      const despesasArray = transactions
+        .filter(t => t.type === 'despesa')
+        .map(t => t.value);
+      const despesas = despesasArray.reduce((sum, v) => sum + v, 0);
+
+      // Categoria mais gasta
+      let categoriaMaisGasta = '-';
+      if (despesas > 0) {
+        const categorias = {};
+        transactions
+          .filter(t => t.type === 'despesa')
+          .forEach(t => {
+            categorias[t.category] = (categorias[t.category] || 0) + t.value;
+          });
+        const entries = Object.entries(categorias);
+        if (entries.length > 0) {
+          categoriaMaisGasta = entries.sort((a, b) => b[1] - a[1])[0][0];
+        }
+      }
+
+      // Meta de poupança (soma das metas)
+      const meta = goals.reduce((sum, g) => sum + (parseFloat(g.amount) || 0), 0);
+
+      // Média das despesas
+      const mediaDespesas = despesasArray.length > 0 ? despesas / despesasArray.length : 0;
+
+      // Quantidade de transações
+      const qtdTransacoes = transactions.length;
+
+      // Percentual receitas vs despesas
+      const percentual = receitas > 0 ? ((despesas / receitas) * 100).toFixed(1) : 0;
+
+      // Maior e menor despesa
+      const maiorDespesa = despesasArray.length > 0 ? Math.max(...despesasArray) : 0;
+      const menorDespesa = despesasArray.length > 0 ? Math.min(...despesasArray) : 0;
+
+      document.getElementById('stat-receitas').textContent = `R$ ${receitas.toFixed(2)}`;
+      document.getElementById('stat-despesas').textContent = `R$ ${despesas.toFixed(2)}`;
+      document.getElementById('stat-categoria').textContent = categoriaMaisGasta;
+      document.getElementById('stat-meta').textContent = `R$ ${meta.toFixed(2)}`;
+      document.getElementById('stat-media-despesas').textContent = `R$ ${mediaDespesas.toFixed(2)}`;
+      document.getElementById('stat-qtd-transacoes').textContent = qtdTransacoes;
+      document.getElementById('stat-percentual').textContent = `${percentual}%`;
+      document.getElementById('stat-maior-despesa').textContent = `R$ ${maiorDespesa.toFixed(2)}`;
+      document.getElementById('stat-menor-despesa').textContent = `R$ ${menorDespesa.toFixed(2)}`;
+
+      // Animação de contagem
+      animateValue('stat-receitas', 0, receitas, 800, 'R$ ');
+      animateValue('stat-despesas', 0, despesas, 800, 'R$ ');
+      animateValue('stat-media-despesas', 0, mediaDespesas, 800, 'R$ ');
+      animateValue('stat-maior-despesa', 0, maiorDespesa, 800, 'R$ ');
+      animateValue('stat-menor-despesa', 0, menorDespesa, 800, 'R$ ');
+    }
+
+    // Função para atualizar subsetatísticas
+    function updateSubstats() {
+      // Receitas
+      const receitasArray = transactions.filter(t => t.type === 'receita').map(t => t.value);
+      const receitaMedia = receitasArray.length ? receitasArray.reduce((a,b)=>a+b,0)/receitasArray.length : 0;
+      const receitaMaior = receitasArray.length ? Math.max(...receitasArray) : 0;
+      const receitaMenor = receitasArray.length ? Math.min(...receitasArray) : 0;
+      const receitaQtd = receitasArray.length;
+      document.getElementById('substat-receita-media').textContent = `R$ ${receitaMedia.toFixed(2)}`;
+      document.getElementById('substat-receita-maior').textContent = `R$ ${receitaMaior.toFixed(2)}`;
+      document.getElementById('substat-receita-menor').textContent = `R$ ${receitaMenor.toFixed(2)}`;
+      document.getElementById('substat-receita-qtd').textContent = receitaQtd;
+
+      // Despesas
+      const despesasArray = transactions.filter(t => t.type === 'despesa').map(t => t.value);
+      const despesaMedia = despesasArray.length ? despesasArray.reduce((a,b)=>a+b,0)/despesasArray.length : 0;
+      const despesaMaior = despesasArray.length ? Math.max(...despesasArray) : 0;
+      const despesaMenor = despesasArray.length ? Math.min(...despesasArray) : 0;
+      const despesaQtd = despesasArray.length;
+      document.getElementById('substat-despesa-media').textContent = `R$ ${despesaMedia.toFixed(2)}`;
+      document.getElementById('substat-despesa-maior').textContent = `R$ ${despesaMaior.toFixed(2)}`;
+      document.getElementById('substat-despesa-menor').textContent = `R$ ${despesaMenor.toFixed(2)}`;
+      document.getElementById('substat-despesa-qtd').textContent = despesaQtd;
+
+      // Categoria mais gasta
+      let categoriaMaisGasta = '-';
+      let valorCategoria = 0;
+      let pctCategoria = 0;
+      if (despesasArray.length > 0) {
+        const categorias = {};
+        transactions.filter(t => t.type === 'despesa').forEach(t => {
+          categorias[t.category] = (categorias[t.category] || 0) + t.value;
+        });
+        const entries = Object.entries(categorias);
+        if (entries.length > 0) {
+          const [cat, val] = entries.sort((a, b) => b[1] - a[1])[0];
+          categoriaMaisGasta = cat;
+          valorCategoria = val;
+          pctCategoria = (val / despesasArray.reduce((a, b) => a + b, 0)) * 100;
+        }
+      }
+      document.getElementById('substat-categoria-valor').textContent = `R$ ${valorCategoria.toFixed(2)}`;
+      document.getElementById('substat-categoria-pct').textContent = `${pctCategoria.toFixed(1)}%`;
+
+      // Metas
+      const metasQtd = goals.length;
+      const metasMedia = metasQtd ? goals.reduce((a, g) => a + (parseFloat(g.amount) || 0), 0) / metasQtd : 0;
+      document.getElementById('substat-meta-qtd').textContent = metasQtd;
+      document.getElementById('substat-meta-media').textContent = `R$ ${metasMedia.toFixed(2)}`;
+
+      // Média das despesas
+      document.getElementById('substat-media-despesas-qtd').textContent = despesasArray.length;
+
+      // Qtd. de transações
+      const qtdReceitas = receitasArray.length;
+      const qtdDespesas = despesasArray.length;
+      const qtdSaldo = transactions.filter(t => t.type === 'saldo').length;
+      document.getElementById('substat-qtd-receitas').textContent = qtdReceitas;
+      document.getElementById('substat-qtd-despesas').textContent = qtdDespesas;
+      document.getElementById('substat-qtd-saldo').textContent = qtdSaldo;
+
+      // Percentual receitas vs despesas
+      const receitas = receitasArray.reduce((a, b) => a + b, 0);
+      const despesas = despesasArray.reduce((a, b) => a + b, 0);
+      document.getElementById('substat-percentual-receitas').textContent = `R$ ${receitas.toFixed(2)}`;
+      document.getElementById('substat-percentual-despesas').textContent = `R$ ${despesas.toFixed(2)}`;
+    }
+
+    // Event listeners para estatísticas
+    document.querySelectorAll('.stat-item').forEach(item => {
+      item.addEventListener('click', function(e) {
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A') return;
+        const stat = item.getAttribute('data-stat');
+        const substats = document.getElementById(`substats-${stat}`);
+        if (substats) {
+          const isVisible = substats.style.display === 'block';
+          document.querySelectorAll('.substats').forEach(s => s.style.display = 'none');
+          substats.style.display = isVisible ? 'none' : 'block';
+          if (!isVisible) updateSubstats();
+        }
+      });
+    });
+
+    function animateValue(id, start, end, duration, prefix = '', suffix = '') {
+      const obj = document.getElementById(id);
+      if (!obj) return;
+      let startTimestamp = null;
+      const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        const value = start + (end - start) * progress;
+        obj.textContent = prefix + value.toFixed(2) + suffix;
+        if (progress < 1) {
+          window.requestAnimationFrame(step);
+        }
+      };
       window.requestAnimationFrame(step);
     }
-  };
-  window.requestAnimationFrame(step);
-}
 
-const closeGraphicsModalBtn = document.querySelector('.close-modal-graphics');
-const graphicsModal = document.getElementById('modal-graphics');
+    // Event listeners para modal de gráficos
+    const closeGraphicsModalBtn = document.querySelector('.close-modal-graphics');
 
-if (closeGraphicsModalBtn && graphicsModal) {
-  closeGraphicsModalBtn.addEventListener('click', () => {
-    graphicsModal.style.display = 'none';
-    // Opcional: destruir o gráfico ao fechar
-    if (window.financeChartInstance) window.financeChartInstance.destroy();
-  });
-}
+    if (closeGraphicsModalBtn && graphicsModal) {
+      closeGraphicsModalBtn.addEventListener('click', () => {
+        graphicsModal.style.display = 'none';
+        // Opcional: destruir o gráfico ao fechar
+        if (window.financeChartInstance) window.financeChartInstance.destroy();
+      });
+    }
 
-// Também fecha ao clicar fora do conteúdo do modal
-if (graphicsModal) {
-  graphicsModal.addEventListener('click', (e) => {
-    if (e.target === graphicsModal) {
-      graphicsModal.style.display = 'none';
-      if (window.financeChartInstance) window.financeChartInstance.destroy();
+    // Também fecha ao clicar fora do conteúdo do modal
+    if (graphicsModal) {
+      graphicsModal.addEventListener('click', (e) => {
+        if (e.target === graphicsModal) {
+          graphicsModal.style.display = 'none';
+          if (window.financeChartInstance) window.financeChartInstance.destroy();
+        }
+      });
     }
   });
-}
 
