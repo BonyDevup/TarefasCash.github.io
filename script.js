@@ -5,13 +5,16 @@ let tasks = [];
 
   // Funções de persistência LocalStorage
   function saveTasksToLocalStorage() {
+    console.log('💾 Salvando tarefas:', tasks);
     localStorage.setItem('tarefasCash_tasks', JSON.stringify(tasks));
   }
 
   function loadTasksFromLocalStorage() {
     const savedTasks = localStorage.getItem('tarefasCash_tasks');
+    console.log('📥 Carregando tarefas do localStorage:', savedTasks);
     if (savedTasks) {
       tasks = JSON.parse(savedTasks);
+      console.log('✅ Tarefas carregadas:', tasks);
     }
   }
 
@@ -50,10 +53,17 @@ let tasks = [];
 
   // Função para carregar todos os dados
   function loadAllData() {
+    console.log('🔄 Carregando dados do localStorage...');
     loadTasksFromLocalStorage();
     loadTransactionsFromLocalStorage();
     loadGoalsFromLocalStorage();
     loadBudgetsFromLocalStorage();
+    console.log('✅ Dados carregados:', {
+      tasks: tasks.length,
+      transactions: transactions.length,
+      goals: goals.length,
+      budgets: budgets.length
+    });
   }
 
   // Função para salvar todos os dados
@@ -62,6 +72,16 @@ let tasks = [];
     saveTransactionsToLocalStorage();
     saveGoalsToLocalStorage();
     saveBudgetsToLocalStorage();
+    console.log('💾 Todos os dados salvos no localStorage');
+  }
+
+  // Função de debug para verificar localStorage
+  function debugLocalStorage() {
+    console.log('🔍 Debug localStorage:');
+    console.log('Tasks:', localStorage.getItem('tarefasCash_tasks'));
+    console.log('Transactions:', localStorage.getItem('tarefasCash_transactions'));
+    console.log('Goals:', localStorage.getItem('tarefasCash_goals'));
+    console.log('Budgets:', localStorage.getItem('tarefasCash_budgets'));
   }
   
   const themeSwitcher = document.getElementById("themeSwitcher");
@@ -758,7 +778,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     // Load saved data
+    console.log('🚀 Inicializando aplicação...');
     loadAllData(); // Carrega todos os dados do localStorage
+    
+    // Debug inicial
+    debugLocalStorage();
 
     // Initial updates
     updateTasksView();
@@ -766,6 +790,8 @@ document.addEventListener("DOMContentLoaded", () => {
     updateFinancialSummary();
     updateGoalsList();
     updateBudgetList();
+    
+    console.log('✅ Aplicação inicializada!');
   });
 
   filterStatus.addEventListener("change", updateTasksView);
