@@ -2,6 +2,67 @@ let tasks = [];
   let transactions = [];
   let goals = [];
   let budgets = [];
+
+  // Funções de persistência LocalStorage
+  function saveTasksToLocalStorage() {
+    localStorage.setItem('tarefasCash_tasks', JSON.stringify(tasks));
+  }
+
+  function loadTasksFromLocalStorage() {
+    const savedTasks = localStorage.getItem('tarefasCash_tasks');
+    if (savedTasks) {
+      tasks = JSON.parse(savedTasks);
+    }
+  }
+
+  function saveTransactionsToLocalStorage() {
+    localStorage.setItem('tarefasCash_transactions', JSON.stringify(transactions));
+  }
+
+  function loadTransactionsFromLocalStorage() {
+    const savedTransactions = localStorage.getItem('tarefasCash_transactions');
+    if (savedTransactions) {
+      transactions = JSON.parse(savedTransactions);
+    }
+  }
+
+  function saveGoalsToLocalStorage() {
+    localStorage.setItem('tarefasCash_goals', JSON.stringify(goals));
+  }
+
+  function loadGoalsFromLocalStorage() {
+    const savedGoals = localStorage.getItem('tarefasCash_goals');
+    if (savedGoals) {
+      goals = JSON.parse(savedGoals);
+    }
+  }
+
+  function saveBudgetsToLocalStorage() {
+    localStorage.setItem('tarefasCash_budgets', JSON.stringify(budgets));
+  }
+
+  function loadBudgetsFromLocalStorage() {
+    const savedBudgets = localStorage.getItem('tarefasCash_budgets');
+    if (savedBudgets) {
+      budgets = JSON.parse(savedBudgets);
+    }
+  }
+
+  // Função para carregar todos os dados
+  function loadAllData() {
+    loadTasksFromLocalStorage();
+    loadTransactionsFromLocalStorage();
+    loadGoalsFromLocalStorage();
+    loadBudgetsFromLocalStorage();
+  }
+
+  // Função para salvar todos os dados
+  function saveAllData() {
+    saveTasksToLocalStorage();
+    saveTransactionsToLocalStorage();
+    saveGoalsToLocalStorage();
+    saveBudgetsToLocalStorage();
+  }
   
   const themeSwitcher = document.getElementById("themeSwitcher");
   function setTheme(theme) {
@@ -113,6 +174,8 @@ document.addEventListener("DOMContentLoaded", () => {
           };
           transactions.push(transaction);
           goal.saved += amount;
+          saveTransactionsToLocalStorage(); // Salvar transação
+          saveGoalsToLocalStorage(); // Salvar meta atualizada
           updateFinancialSummary();
           updateTransactionsView();
           updateGoalsList();
@@ -124,6 +187,7 @@ document.addEventListener("DOMContentLoaded", () => {
       deleteBtn.addEventListener("click", () => {
         if (confirm("Tem certeza que deseja excluir esta meta?")) {
           goals = goals.filter((g) => g.id !== goal.id);
+          saveGoalsToLocalStorage(); // Salvar após deletar meta
           updateGoalsList();
           updateGoalsListModal();
         }
@@ -197,6 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
       category: taskCategory.value || "outros",
     };
     tasks.push(task);
+    saveTasksToLocalStorage(); // Salvar após adicionar
     updateTasksView();
     taskInput.value = "";
     taskDueDate.value = "";
@@ -259,6 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
         checkbox.addEventListener("change", () => {
           task.completed = checkbox.checked;
           taskElement.classList.toggle("completed");
+          saveTasksToLocalStorage(); // Salvar após completar/descompletar
           updateTasksView();
         });
         const editBtn = taskElement.querySelector(".edit-btn");
@@ -278,6 +344,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const newText = inputElement.value.trim();
             if (newText) {
               task.text = newText;
+              saveTasksToLocalStorage(); // Salvar após editar
               updateTasksView();
             }
           });
@@ -285,6 +352,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const deleteBtn = taskElement.querySelector(".delete-btn");
         deleteBtn.addEventListener("click", () => {
           tasks = tasks.filter((t) => t.id !== task.id);
+          saveTasksToLocalStorage(); // Salvar após deletar
           updateTasksView();
         });
         modalTasksView.appendChild(taskElement);
@@ -316,6 +384,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     transactions.push(transaction);
+    saveTransactionsToLocalStorage(); // Salvar após adicionar transação
     updateFinancialSummary();
     updateTransactionsView();
     clearTransactionForm();
@@ -425,6 +494,7 @@ document.addEventListener("DOMContentLoaded", () => {
       );
       deleteBtn.addEventListener("click", () => {
         transactions = transactions.filter((t) => t.id !== transaction.id);
+        saveTransactionsToLocalStorage(); // Salvar após deletar transação
         updateFinancialSummary();
         updateTransactionsView();
       });
@@ -462,6 +532,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     goals.push(goal);
+    saveGoalsToLocalStorage(); // Salvar após adicionar meta
     updateGoalsList();
     clearGoalForm();
   }
@@ -487,6 +558,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
 
+    saveBudgetsToLocalStorage(); // Salvar após adicionar/atualizar orçamento
     updateBudgetList();
     clearBudgetForm();
   }
@@ -542,7 +614,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
           transactions.push(transaction);
           goal.saved += amount;
-
+          saveTransactionsToLocalStorage(); // Salvar transação
+          saveGoalsToLocalStorage(); // Salvar meta atualizada
           updateFinancialSummary();
           updateTransactionsView();
           updateGoalsList();
@@ -552,6 +625,7 @@ document.addEventListener("DOMContentLoaded", () => {
       deleteBtn.addEventListener("click", () => {
         if (confirm("Tem certeza que deseja excluir esta meta?")) {
           goals = goals.filter((g) => g.id !== goal.id);
+          saveGoalsToLocalStorage(); // Salvar após deletar meta
           updateGoalsList();
         }
       });
@@ -621,6 +695,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .addEventListener("click", () => {
           if (confirm("Tem certeza que deseja excluir este orçamento?")) {
             budgets = budgets.filter((b) => b.id !== budget.id);
+            saveBudgetsToLocalStorage(); // Salvar após deletar orçamento
             updateBudgetList();
           }
         });
@@ -683,9 +758,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     // Load saved data
-    loadTasksFromLocalStorage();
-    loadTransactions();
-    loadGoalsAndBudgets();
+    loadAllData(); // Carrega todos os dados do localStorage
 
     // Initial updates
     updateTasksView();
