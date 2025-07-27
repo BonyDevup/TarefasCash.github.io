@@ -740,17 +740,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    window.addEventListener("click", (event) => {
-      if (event.target === modal) {
-        modal.style.display = "none";
-      }
-    });
-
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && modal.style.display === "block") {
-        modal.style.display = "none";
-      }
-    });
     // Load saved data
     console.log('🚀 Inicializando aplicação...');
     loadAllData(); // Carrega todos os dados do localStorage
