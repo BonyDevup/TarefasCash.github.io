@@ -1,0 +1,142 @@
+{
+  "name": "tarefas-cash-app",
+  "version": "1.0.2",
+  "description": "TarefasCash - Gerenciador Financeiro Multiplataforma",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "start": "electron .",
+    "postinstall": "electron-rebuild",
+    "rebuild": "electron-rebuild",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder --win --mac --linux",
+    "dist": "npm run build:win",
+    "dist:portable": "electron-builder --win portable",
+    "pack": "electron-builder --dir",
+    "release": "electron-builder --publish=always",
+    "capacitor:init": "capacitor init",
+    "capacitor:add:android": "capacitor add android",
+    "capacitor:add:ios": "capacitor add ios",
+    "capacitor:sync": "capacitor sync",
+    "capacitor:run:android": "capacitor run android",
+    "capacitor:run:ios": "capacitor run ios",
+    "capacitor:build:android": "capacitor build android",
+    "capacitor:build:ios": "capacitor build ios"
+  },
+  "keywords": [
+    "financial",
+    "task-manager",
+    "electron",
+    "capacitor",
+    "sqlite",
+    "desktop",
+    "mobile"
+  ],
+  "author": "BonyDevup",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^32.2.7",
+    "electron-builder": "^25.1.8",
+    "electron-rebuild": "^3.2.9"
+  },
+  "dependencies": {
+    "@capacitor-community/sqlite": "^6.0.2",
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2"
+  },
+  "build": {
+    "appId": "com.bonydevup.tarefascash",
+    "productName": "TarefasCash - Gerenciador Financeiro",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}",
+      "!dist",
+      "!build"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "publisherName": "BonyDevup",
+      "verifyUpdateCodeSignature": false,
+      "signAndEditExecutable": false,
+      "signDlls": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "TarefasCash"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.finance"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Office"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "BonyDevup",
+      "repo": "TarefasCash.github.io"
+    }
+  }
+}

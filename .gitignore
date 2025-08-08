@@ -1,7 +1,125 @@
+# Arquivos de Planejamento e Documentação de Desenvolvimento
 Planejamento_Projeto.markdown
 Planejamento-Registro-de-Usuario.markdown
 Planejando-Conteudo-midia.txt
-relatorio-1.md
-relatorio-2.md
+
+# Relatórios (exceto RELEASE NOTES)
+relatorio-*.md
+RELATORIO-*.md
+RESUMO-EXECUTIVO-*.md
+
+# Documentação de Distribuição
+COMO-DISTRIBUIR.md
+DISTRIBUICAO.md
+GUIA-DISTRIBUICAO.md
+
+# Arquivos de Teste e Correções
+TESTE-CORRECOES.md
+
+# Arquivos de Modelos (já incluídos no código principal)
+modelos/
 login.html
 registro.html
+
+# Configurações do VS Code
+.vscode/
+tasks.json
+
+# Arquivos de Build e Distribuição
+dis/
+build/
+win-unpacked/
+*.exe
+*.blockmap
+
+# Banco de Dados Local
+tarefas_cash.db
+database/
+
+# Arquivos de Teste e Debug
+debug-*.js
+test-*.js
+teste-*.bat
+teste-*.html
+verificar-*.bat
+testar-*.bat
+nul
+
+# Scripts de Build
+build-release.bat
+build-release.sh
+generate-icons.bat
+
+# Arquivos de CI/CD
+azure-pipelines.yml
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Logs
+logs/
+*.log
+
+# Arquivos temporários
+*.tmp
+*.temp
+
+# SEGURANÇA - Arquivos Sensíveis
+# APKs e builds nativos
+*.apk
+*.ipa
+*.aab
+android/
+ios/
+www/
+dist/
+
+# Arquivos de configuração com dados sensíveis
+capacitor.config.ts
+local.properties
+google-services.json
+GoogleService-Info.plist
+
+# Chaves e certificados
+*.keystore
+*.jks
+*.p12
+*.key
+*.pem
+*.crt
+
+# Documentação técnica detalhada (manter apenas básica)
+DOCUMENTACAO-TECNICA-COMPLETA.md
+ANALISE-*.md
+GUIA-TESTE-*.md
+PASSO-A-PASSO-*.md
+INDICE-DOCUMENTACAO.md
+
+# Arquivos de distribuição e instalação
+*.tar.gz
+*.zip
+*-INSTALAR.txt
+*-Mobile-*.txt
+*-Mobile-*.zip
+*-Mobile-*.tar.gz
+tarefascash-mobile-download/
+
+# Scripts de build e deploy sensíveis
+build-mobile.*
+deploy-mobile.*
+criar-download-mobile.*
+iniciar-servidor-mobile.*
+
+# Arquivo de recursos com configurações
+resources.json
+
+# Backups de layout
+mobile-layout-manager-old.js
+validacao-melhorias.js
+
+# Documentação de melhorias específicas
+MELHORIAS-*.md
+ATUALIZACAO-*.md
