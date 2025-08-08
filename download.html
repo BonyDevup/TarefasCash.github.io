@@ -193,16 +193,14 @@
                 </button>
                 
                 <!-- ZIP Download -->
-                <a href="https://github.com/BonyDevup/TarefasCash.github.io/raw/main/TarefasCash-Mobile-v1.0.2.zip" 
-                   class="download-btn zip" download>
+                <button class="download-btn zip" onclick="downloadZip()">
                     📦 Download ZIP (586KB)
-                </a>
+                </button>
                 
                 <!-- TAR.GZ Download -->
-                <a href="https://github.com/BonyDevup/TarefasCash.github.io/raw/main/TarefasCash-Mobile-v1.0.2.tar.gz" 
-                   class="download-btn tar" download>
+                <button class="download-btn tar" onclick="downloadTarGz()">
                     📁 Download TAR.GZ (585KB)
-                </a>
+                </button>
             </div>
             
             <!-- Informações -->
@@ -258,6 +256,80 @@
                 setTimeout(() => {
                     window.location.href = 'https://bonydevup.github.io/TarefasCash.github.io/';
                 }, 1000);
+            }
+        }
+        
+        // Função para download direto do ZIP
+        async function downloadZip() {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            
+            btn.textContent = '⏳ Baixando...';
+            btn.classList.add('loading');
+            
+            try {
+                // Criar link temporário para download
+                const link = document.createElement('a');
+                link.href = 'https://github.com/BonyDevup/TarefasCash.github.io/raw/main/TarefasCash-Mobile-v1.0.2.zip';
+                link.download = 'TarefasCash-Mobile-v1.0.2.zip';
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                btn.textContent = '✅ Baixado!';
+                btn.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
+                
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('loading');
+                    btn.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
+                }, 3000);
+                
+            } catch (error) {
+                btn.textContent = '❌ Erro';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('loading');
+                }, 2000);
+            }
+        }
+        
+        // Função para download direto do TAR.GZ
+        async function downloadTarGz() {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            
+            btn.textContent = '⏳ Baixando...';
+            btn.classList.add('loading');
+            
+            try {
+                // Criar link temporário para download
+                const link = document.createElement('a');
+                link.href = 'https://github.com/BonyDevup/TarefasCash.github.io/raw/main/TarefasCash-Mobile-v1.0.2.tar.gz';
+                link.download = 'TarefasCash-Mobile-v1.0.2.tar.gz';
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                btn.textContent = '✅ Baixado!';
+                btn.style.background = 'linear-gradient(45deg, #FF9800, #F57C00)';
+                
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('loading');
+                    btn.style.background = 'linear-gradient(45deg, #FF9800, #F57C00)';
+                }, 3000);
+                
+            } catch (error) {
+                btn.textContent = '❌ Erro';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('loading');
+                }, 2000);
             }
         }
         
