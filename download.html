@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📱 TarefasCash Mobile - Download</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="build/icon.ico">
+    <meta name="description" content="Download TarefasCash Mobile - Gerenciador Financeiro para celular">
+    <meta name="theme-color" content="#00f7ff">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .header {
+            margin-bottom: 40px;
+        }
+        
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            animation: bounce 2s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+        
+        .title {
+            font-size: 2.5rem;
+            color: #00f7ff;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: #aaa;
+            margin-bottom: 30px;
+        }
+        
+        .download-section {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00f7ff;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 20px 40px rgba(0, 247, 255, 0.2);
+        }
+        
+        .download-btn {
+            display: block;
+            width: 100%;
+            padding: 20px;
+            margin: 15px 0;
+            background: linear-gradient(45deg, #00f7ff, #a259ff);
+            color: #000;
+            text-decoration: none;
+            border-radius: 15px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(0, 247, 255, 0.4);
+        }
+        
+        .download-btn.zip {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+        }
+        
+        .download-btn.tar {
+            background: linear-gradient(45deg, #FF9800, #F57C00);
+        }
+        
+        .download-btn.pwa {
+            background: linear-gradient(45deg, #E91E63, #C2185B);
+        }
+        
+        .download-info {
+            background: rgba(0, 247, 255, 0.1);
+            border: 1px solid rgba(0, 247, 255, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .download-info h3 {
+            color: #00f7ff;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+        
+        .download-info ul {
+            text-align: left;
+            list-style: none;
+        }
+        
+        .download-info li {
+            margin: 10px 0;
+            padding: 8px 0;
+            font-size: 1rem;
+        }
+        
+        .download-info li::before {
+            content: "📱 ";
+            margin-right: 8px;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        /* Detectar apenas mobile */
+        .desktop-only {
+            display: none;
+        }
+        
+        @media (min-width: 768px) {
+            .mobile-only {
+                display: none;
+            }
+            .desktop-only {
+                display: block;
+            }
+            .container {
+                max-width: 500px;
+            }
+        }
+        
+        /* Animação de loading para PWA */
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">💰</div>
+            <h1 class="title">TarefasCash</h1>
+            <p class="subtitle">Gerenciador Financeiro Mobile</p>
+        </div>
+        
+        <!-- Aviso para Desktop -->
+        <div class="desktop-only">
+            <div class="download-info">
+                <h3>⚠️ Página Mobile</h3>
+                <p>Esta página é otimizada para celular. Acesse pelo seu smartphone para fazer o download.</p>
+            </div>
+        </div>
+        
+        <!-- Downloads Mobile -->
+        <div class="mobile-only">
+            <div class="download-section">
+                <h2 style="color: #00f7ff; margin-bottom: 20px;">📱 Downloads Disponíveis</h2>
+                
+                <!-- PWA Install -->
+                <button class="download-btn pwa" onclick="installPWA()">
+                    📲 Instalar App (PWA)
+                </button>
+                
+                <!-- ZIP Download -->
+                <a href="https://bonydevup.github.io/TarefasCash.github.io/TarefasCash-Mobile-v1.0.2.zip" 
+                   class="download-btn zip" download>
+                    📦 Download ZIP (586KB)
+                </a>
+                
+                <!-- TAR.GZ Download -->
+                <a href="https://bonydevup.github.io/TarefasCash.github.io/TarefasCash-Mobile-v1.0.2.tar.gz" 
+                   class="download-btn tar" download>
+                    📁 Download TAR.GZ (585KB)
+                </a>
+            </div>
+            
+            <!-- Informações -->
+            <div class="download-info">
+                <h3>📋 Como Usar</h3>
+                <ul>
+                    <li>Instalar App (PWA): Melhor opção, funciona offline</li>
+                    <li>Download ZIP: Arquivo para Android/Windows</li>
+                    <li>Download TAR.GZ: Arquivo para Linux/Mac</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p>v1.0.2 • Desenvolvido por BonyDevup</p>
+            <p>Compatível com Android e iOS</p>
+        </div>
+    </div>
+
+    <script>
+        // PWA Installation
+        let deferredPrompt;
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+        });
+        
+        async function installPWA() {
+            const btn = document.querySelector('.pwa');
+            btn.classList.add('loading');
+            btn.textContent = '⏳ Preparando...';
+            
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                
+                if (outcome === 'accepted') {
+                    btn.textContent = '✅ Instalado!';
+                    btn.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
+                } else {
+                    btn.textContent = '❌ Cancelado';
+                    btn.classList.remove('loading');
+                    setTimeout(() => {
+                        btn.textContent = '📲 Instalar App (PWA)';
+                    }, 2000);
+                }
+                deferredPrompt = null;
+            } else {
+                // Fallback para navegadores que não suportam PWA
+                btn.textContent = '🌐 Abrindo App...';
+                setTimeout(() => {
+                    window.location.href = 'https://bonydevup.github.io/TarefasCash.github.io/';
+                }, 1000);
+            }
+        }
+        
+        // Detectar se é mobile
+        function isMobile() {
+            return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+        
+        // Mostrar apenas conteúdo relevante
+        if (isMobile()) {
+            document.querySelector('.mobile-only').style.display = 'block';
+            document.querySelector('.desktop-only').style.display = 'none';
+        } else {
+            document.querySelector('.mobile-only').style.display = 'none';
+            document.querySelector('.desktop-only').style.display = 'block';
+        }
+        
+        // Vibração no toque (mobile)
+        if (isMobile()) {
+            document.querySelectorAll('.download-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (navigator.vibrate) {
+                        navigator.vibrate(50);
+                    }
+                });
+            });
+        }
+    </script>
+</body>
+</html>
