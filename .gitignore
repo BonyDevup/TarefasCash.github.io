@@ -123,3 +123,24 @@ validacao-melhorias.js
 # Documentação de melhorias específicas
 MELHORIAS-*.md
 ATUALIZACAO-*.md
+
+# Arquivos removidos do repositório público
+README.pdf
+azure-pipelines.yml
+acesso-direto-mobile.html
+download.html
+mobile-layout-manager.js
+styles-mobile.css
+clean-repo.bat
+
+# Node modules e packages
+node_modules/
+package-lock.json
+
+# Pastas de desenvolvimento
+electron/
+database/
+dis/
+modelos/
+.vscode/
+.github/
