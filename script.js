@@ -1,154 +1,1870 @@
 let tasks = [];
-  let transactions = [];
-  let goals = [];
-  let budgets = [];
+let transactions = [];
+let goals = [];
+let budgets = [];
+let persistenceManager;
 
-  // Funções de persistência LocalStorage
+// ========== SISTEMA DE NOTIFICAÇÕES COMPATÍVEL COM ELECTRON ==========
+
+function showNotification(message, type = 'info', duration = 4000) {
+  const container = document.getElementById('notification-container');
+  if (!container) {
+    console.warn('Container de notificações não encontrado');
+    return;
+  }
+
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  
+  const icons = {
+    success: '✅',
+    error: '❌',
+    warning: '⚠️',
+    info: 'ℹ️'
+  };
+
+  notification.innerHTML = `
+    <span class="notification-icon">${icons[type] || 'ℹ️'}</span>
+    <span class="notification-message">${message}</span>
+    <button class="notification-close">&times;</button>
+  `;
+
+  // Adicionar evento de fechar
+  const closeBtn = notification.querySelector('.notification-close');
+  closeBtn.addEventListener('click', () => {
+    removeNotification(notification);
+  });
+
+  container.appendChild(notification);
+  
+  // Animar entrada
+  setTimeout(() => {
+    notification.classList.add('show');
+  }, 10);
+
+  // Auto remover
+  if (duration > 0) {
+    setTimeout(() => {
+      removeNotification(notification);
+    }, duration);
+  }
+
+  return notification;
+}
+
+function removeNotification(notification) {
+  if (notification && notification.parentNode) {
+    notification.classList.remove('show');
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }
+}
+
+function showConfirmation(message, title = 'Confirmar Ação') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('confirmation-modal');
+    const titleElement = document.getElementById('confirmation-title');
+    const messageElement = document.getElementById('confirmation-message');
+    const yesBtn = document.getElementById('confirm-yes');
+    const noBtn = document.getElementById('confirm-no');
+
+    if (!modal) {
+      console.warn('Modal de confirmação não encontrado, usando fallback');
+      resolve(confirm(message));
+      return;
+    }
+
+    titleElement.textContent = title;
+    messageElement.textContent = message;
+    modal.style.display = 'flex';
+
+    // Remover event listeners anteriores
+    const newYesBtn = yesBtn.cloneNode(true);
+    const newNoBtn = noBtn.cloneNode(true);
+    yesBtn.parentNode.replaceChild(newYesBtn, yesBtn);
+    noBtn.parentNode.replaceChild(newNoBtn, noBtn);
+
+    // Adicionar novos event listeners
+    newYesBtn.addEventListener('click', () => {
+      modal.style.display = 'none';
+      resolve(true);
+    });
+
+    newNoBtn.addEventListener('click', () => {
+      modal.style.display = 'none';
+      resolve(false);
+    });
+
+    // Fechar com ESC
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        modal.style.display = 'none';
+        document.removeEventListener('keydown', escHandler);
+        resolve(false);
+      }
+    };
+    document.addEventListener('keydown', escHandler);
+
+    // Fechar clicando fora
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.style.display = 'none';
+        resolve(false);
+      }
+    });
+  });
+}
+
+// Função de debounce para evitar múltiplos cliques
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+// Sistema de controle de operações em andamento
+const operationLocks = new Set();
+
+function showValueInput(message, title = 'Insira o Valor') {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('value-input-overlay');
+    const titleElement = document.getElementById('value-input-title');
+    const inputField = document.getElementById('value-input-field');
+    const confirmBtn = document.getElementById('value-input-confirm');
+    const cancelBtn = document.getElementById('value-input-cancel');
+
+    if (!overlay) {
+      console.warn('Value input overlay não encontrado, usando fallback');
+      const result = prompt(message);
+      resolve(result ? parseFloat(result) : null);
+      return;
+    }
+
+    titleElement.textContent = title;
+    inputField.value = '';
+    inputField.placeholder = message;
+    overlay.style.display = 'flex';
+    
+    // Focar no input
+    setTimeout(() => {
+      inputField.focus();
+    }, 100);
+
+    // Remover event listeners anteriores
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+    const closeModal = () => {
+      overlay.style.display = 'none';
+    };
+
+    const confirmValue = () => {
+      const value = parseFloat(inputField.value);
+      if (!isNaN(value) && value > 0) {
+        closeModal();
+        resolve(value);
+      } else {
+        showError('Por favor, insira um valor válido maior que zero!');
+        inputField.focus();
+      }
+    };
+
+    // Adicionar novos event listeners
+    newConfirmBtn.addEventListener('click', confirmValue);
+
+    newCancelBtn.addEventListener('click', () => {
+      closeModal();
+      resolve(null);
+    });
+
+    // Confirmar com Enter
+    inputField.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmValue();
+      }
+    });
+
+    // Fechar com ESC
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        document.removeEventListener('keydown', escHandler);
+        resolve(null);
+      }
+    };
+    document.addEventListener('keydown', escHandler);
+
+    // Fechar clicando fora
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        closeModal();
+        resolve(null);
+      }
+    });
+  });
+}
+
+// Funções de notificação específicas
+function showSuccess(message) {
+  return showNotification(message, 'success');
+}
+
+function showError(message) {
+  return showNotification(message, 'error');
+}
+
+function showWarning(message) {
+  return showNotification(message, 'warning');
+}
+
+function showInfo(message) {
+  return showNotification(message, 'info');
+}
+
+// Função de prompt compatível com Electron
+function showPrompt(message, defaultValue = '') {
+  if (isElectron && window.electronAPI && window.electronAPI.showPrompt) {
+    // Se tiver uma API específica do Electron para prompt
+    return window.electronAPI.showPrompt(message, defaultValue);
+  } else {
+    // Fallback para prompt nativo
+    return prompt(message, defaultValue);
+  }
+}
+
+// ========== FIM DO SISTEMA DE NOTIFICAÇÕES ==========
+
+// Função para atualizar a view de tarefas (declarada antes de ser usada)
+function updateTasksView() {
+  // Só mostra tarefas no modal
+  const modalTasksView = document.querySelector('#modal-tarefas .tasks-view');
+  if (!modalTasksView) return;
+  modalTasksView.innerHTML = "";
+  
+  // Verificar se os elementos de filtro existem
+  const filterStatus = document.getElementById('filterStatus');
+  const filterCategory = document.getElementById('filterCategory');
+  
+  const filterStatusValue = filterStatus?.value || 'todas';
+  const filterCategoryValue = filterCategory?.value || '';
+  
+  tasks
+    .filter((task) => {
+      if (filterStatusValue === "ativas" && task.completed) return false;
+      if (filterStatusValue === "concluidas" && !task.completed) return false;
+      if (filterCategoryValue && task.category !== filterCategoryValue) return false;
+      return true;
+    })
+    .forEach((task) => {
+      const taskElement = document.createElement("div");
+      taskElement.classList.add("task-item");
+      const daysLeft = task.dueDate
+        ? Math.ceil((new Date(task.dueDate) - new Date()) / (1000 * 60 * 60 * 24))
+        : null;
+      if (daysLeft !== null) {
+        if (daysLeft < 0) {
+          taskElement.classList.add("task-overdue");
+        } else if (daysLeft <= 2) {
+          taskElement.classList.add("task-urgent");
+        } else if (daysLeft <= 5) {
+          taskElement.classList.add("task-warning");
+        }
+      }
+      taskElement.innerHTML = `
+        <div class="task-content ${task.completed ? "completed" : ""}">
+          <input type="checkbox" ${task.completed ? "checked" : ""} />
+          <span class="task-text">${task.text}</span>
+          <span class="task-category">${task.category}</span>
+          ${
+            task.dueDate
+              ? `<span class="task-due-date ${daysLeft < 0 ? "overdue" : ""}">
+                  ${daysLeft < 0 ? "Atrasada" : daysLeft === 0 ? "Hoje" : daysLeft === 1 ? "Amanhã" : `${daysLeft} dias`}
+                </span>`
+              : ""
+          }
+          <span class="task-date">${task.date}</span>
+        </div>
+        <div class="task-actions">
+          <button class="edit-btn">✏️</button>
+          <button class="delete-btn">❌</button>
+        </div>
+      `;
+      const checkbox = taskElement.querySelector('input[type="checkbox"]');
+      checkbox.addEventListener("change", async () => {
+        task.completed = checkbox.checked;
+        taskElement.classList.toggle("completed");
+        if (typeof saveTask === 'function') {
+          await saveTask(task);
+        }
+        updateTasksView();
+      });
+      const editBtn = taskElement.querySelector(".edit-btn");
+      editBtn.addEventListener("click", () => {
+        const spanElement = taskElement.querySelector(".task-text");
+        const currentText = spanElement.textContent;
+        const inputElement = document.createElement("input");
+        inputElement.type = "text";
+        inputElement.value = currentText;
+        inputElement.classList.add("edit-input");
+        const saveBtn = document.createElement("button");
+        saveBtn.classList.add("save-btn");
+        saveBtn.textContent = "💾";
+        spanElement.replaceWith(inputElement);
+        editBtn.replaceWith(saveBtn);
+        saveBtn.addEventListener("click", async () => {
+          const newText = inputElement.value.trim();
+          if (newText) {
+            task.text = newText;
+            if (typeof saveTask === 'function') {
+              await saveTask(task);
+            }
+            updateTasksView();
+          }
+        });
+      });
+      const deleteBtn = taskElement.querySelector(".delete-btn");
+      
+      // Criar função debounced para deletar
+      const debouncedDelete = debounce(async (taskId, buttonElement) => {
+        try {
+          // Desabilitar o botão e mostrar loading
+          buttonElement.disabled = true;
+          buttonElement.innerHTML = '⏳';
+          buttonElement.style.opacity = '0.6';
+          
+          const result = await deleteTask(taskId);
+          if (result.success) {
+            updateTasksView();
+          } else {
+            // Reabilitar o botão se falhou
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = '❌';
+            buttonElement.style.opacity = '1';
+          }
+        } catch (error) {
+          console.error('❌ Erro no event listener de deletar tarefa:', error);
+          showNotification('Erro ao excluir tarefa', 'error');
+          
+          // Reabilitar o botão em caso de erro
+          buttonElement.disabled = false;
+          buttonElement.innerHTML = '❌';
+          buttonElement.style.opacity = '1';
+        }
+      }, 300);
+      
+      deleteBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        debouncedDelete(task.id, deleteBtn);
+      });
+      modalTasksView.appendChild(taskElement);
+    });
+}
+
+// Inicializar o sistema quando o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('🚀 DOM carregado, aguardando PersistenceManager...');
+  
+  // Aguardar o PersistenceManager estar disponível com timeout
+  let attempts = 0;
+  const maxAttempts = 50; // 5 segundos
+  
+  while (!window.persistenceManager && attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    attempts++;
+  }
+  
+  if (window.persistenceManager) {
+    persistenceManager = window.persistenceManager;
+    console.log('✅ Sistema de persistência inicializado');
+    await initializeApp();
+  } else {
+    console.error('❌ PersistenceManager não encontrado após timeout!');
+    // Fallback para localStorage apenas
+    await initializeAppFallback();
+  }
+});
+
+async function initializeApp() {
+    console.log('🚀 Inicializando aplicação...');
+    
+    // Carregar todos os dados
+    const result = await persistenceManager.loadAllData();
+    if (result && result.success && result.data) {
+      tasks = result.data.tasks || [];
+      transactions = result.data.transactions || [];
+      goals = result.data.goals || [];
+      budgets = result.data.budgets || [];
+      console.log('📊 Dados carregados:', {
+        tasks: tasks.length,
+        transactions: transactions.length,
+        goals: goals.length,
+        budgets: budgets.length
+      });
+    } else {
+      // Inicializar arrays vazios se não houver dados
+      tasks = [];
+      transactions = [];
+      goals = [];
+      budgets = [];
+      console.log('📊 Inicializando com dados vazios');
+    }
+    
+    // Configurar tema
+    setupThemeSwitcher();
+    
+    // Configurar event listeners
+    setupDOMEventListeners();
+    
+    // Aguardar um pouco para garantir que o DOM esteja pronto
+    setTimeout(() => {
+      // Atualizar todas as views
+      updateTasksView();
+      updateTransactionsView();
+      updateFinancialSummary();
+      updateGoalsList();
+      updateBudgetList();
+      
+      // Forçar atualização do resumo financeiro após um delay adicional
+      setTimeout(() => {
+        updateFinancialSummary();
+        console.log('💰 Resumo financeiro atualizado na inicialização');
+      }, 300);
+    }, 100);
+    
+    // Verificar integridade dos dados
+    await persistenceManager.verifyDataIntegrity();
+    
+    console.log('✅ Aplicação inicializada!');
+  }
+
+  async function initializeAppFallback() {
+    console.log('⚠️ Inicializando aplicação em modo fallback (localStorage)...');
+    
+    // Carregar dados do localStorage
+    loadTasksFromLocalStorage();
+    loadTransactionsFromLocalStorage();
+    loadGoalsFromLocalStorage();
+    loadBudgetsFromLocalStorage();
+    
+    // Configurar tema
+    setupThemeSwitcher();
+    
+    // Configurar event listeners
+    setupDOMEventListeners();
+    
+    // Aguardar um pouco para garantir que o DOM esteja pronto
+    setTimeout(() => {
+      // Atualizar todas as views
+      updateTasksView();
+      updateTransactionsView();
+      updateFinancialSummary();
+      updateGoalsList();
+      updateBudgetList();
+      
+      // Forçar atualização do resumo financeiro após um delay adicional
+      setTimeout(() => {
+        updateFinancialSummary();
+        console.log('💰 Resumo financeiro atualizado no fallback');
+      }, 300);
+    }, 100);
+    
+    console.log('✅ Aplicação inicializada em modo fallback!');
+  }
+
+  // Detectar se está rodando no Electron ou no navegador
+  const isElectron = typeof window !== 'undefined' && window.electronAPI && window.electronAPI.isElectron;
+
+  console.log(isElectron ? '🖥️ Modo Desktop (SQLite)' : '🌐 Modo Web (localStorage)');
+
+  // Função para gerar ID único
+  function generateUniqueId() {
+    return Date.now() + Math.random() * 1000000;
+  }
+
+  // Variável para prevenir duplos cliques
+  let isAddingTask = false;
+
+  // Variável para controlar se os dados foram carregados
+  let dataLoaded = false;
+
+  // Event listener para mudanças de visibilidade da página
+  document.addEventListener('visibilitychange', async function() {
+    if (!document.hidden && dataLoaded) {
+      console.log('🔄 Página ficou visível, recarregando dados...');
+      await forceReloadAllViews();
+    }
+  });
+
+  // Event listener adicional para garantir atualização quando a página carregar
+  window.addEventListener('load', function() {
+    console.log('🔄 Página carregada, atualizando resumo financeiro...');
+    setTimeout(() => {
+      updateFinancialSummary();
+    }, 500);
+  });
+
+  // Event listener para quando o DOM estiver completamente carregado
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('🔄 DOM carregado, preparando atualização financeira...');
+    setTimeout(() => {
+      updateFinancialSummary();
+    }, 1000);
+  });
+
+  // Função para forçar recarregamento de todas as views
+  async function forceReloadAllViews() {
+    updateTasksView();
+    updateTransactionsView();
+    updateFinancialSummary();
+    updateGoalsList();
+    updateBudgetList();
+    
+    // Atualizar estatísticas também
+    if (typeof updateStatistics === 'function') {
+      updateStatistics();
+    }
+    
+    // Garantir múltiplas atualizações do resumo financeiro
+    setTimeout(() => {
+      updateFinancialSummary();
+    }, 100);
+    
+    setTimeout(() => {
+      updateFinancialSummary();
+    }, 300);
+    
+    setTimeout(() => {
+      updateFinancialSummary();
+    }, 500);
+    
+    console.log('🔄 Todas as views foram atualizadas');
+  }
+
+  // Funções de persistência LocalStorage (fallback para web APENAS)
   function saveTasksToLocalStorage() {
-    console.log('💾 Salvando tarefas:', tasks);
+    if (isElectron) return; // Não usar localStorage no Electron
+    console.log('💾 Salvando tarefas no localStorage:', tasks);
     localStorage.setItem('tarefasCash_tasks', JSON.stringify(tasks));
   }
 
   function loadTasksFromLocalStorage() {
+    if (isElectron) return; // Não usar localStorage no Electron
     const savedTasks = localStorage.getItem('tarefasCash_tasks');
     console.log('📥 Carregando tarefas do localStorage:', savedTasks);
     if (savedTasks) {
       tasks = JSON.parse(savedTasks);
       console.log('✅ Tarefas carregadas:', tasks);
+    } else {
+      tasks = [];
+      console.log('📋 Inicializando array vazio de tarefas');
     }
   }
 
   function saveTransactionsToLocalStorage() {
+    if (isElectron) return; // Não usar localStorage no Electron
     localStorage.setItem('tarefasCash_transactions', JSON.stringify(transactions));
   }
 
   function loadTransactionsFromLocalStorage() {
+    if (isElectron) return; // Não usar localStorage no Electron
     const savedTransactions = localStorage.getItem('tarefasCash_transactions');
     if (savedTransactions) {
       transactions = JSON.parse(savedTransactions);
+      console.log('✅ Transações carregadas:', transactions.length);
+    } else {
+      transactions = [];
+      console.log('💰 Inicializando array vazio de transações');
     }
   }
 
   function saveGoalsToLocalStorage() {
+    if (isElectron) return; // Não usar localStorage no Electron
     localStorage.setItem('tarefasCash_goals', JSON.stringify(goals));
   }
 
   function loadGoalsFromLocalStorage() {
+    if (isElectron) return; // Não usar localStorage no Electron
     const savedGoals = localStorage.getItem('tarefasCash_goals');
     if (savedGoals) {
       goals = JSON.parse(savedGoals);
+      console.log('✅ Metas carregadas:', goals.length);
+    } else {
+      goals = [];
+      console.log('🎯 Inicializando array vazio de metas');
     }
   }
 
   function saveBudgetsToLocalStorage() {
+    if (isElectron) return; // Não usar localStorage no Electron
     localStorage.setItem('tarefasCash_budgets', JSON.stringify(budgets));
   }
 
   function loadBudgetsFromLocalStorage() {
+    if (isElectron) return; // Não usar localStorage no Electron
     const savedBudgets = localStorage.getItem('tarefasCash_budgets');
     if (savedBudgets) {
       budgets = JSON.parse(savedBudgets);
+      console.log('✅ Orçamentos carregados:', budgets.length);
+    } else {
+      budgets = [];
+      console.log('💼 Inicializando array vazio de orçamentos');
+    }
+  }
+
+  // FUNÇÕES ANTIGAS REMOVIDAS - USANDO APENAS AS VERSÕES HÍBRIDAS MAIS ABAIXO
+
+  // ===== FUNÇÕES HÍBRIDAS DE PERSISTÊNCIA =====
+  
+  // TASKS
+  async function saveTasks() {
+    if (isElectron) {
+      try {
+        // Salvar apenas tarefas que não têm sqliteId (novas)
+        for (const task of tasks) {
+          if (!task.sqliteId) {
+            const result = await window.electronAPI.saveTask(task);
+            if (result.success) {
+              task.sqliteId = result.id;
+              console.log('💾 Nova tarefa salva no SQLite:', task.text);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erro ao salvar no SQLite, usando localStorage:', error);
+        saveTasksToLocalStorage();
+      }
+    } else {
+      saveTasksToLocalStorage();
+    }
+  }
+
+  async function saveTask(task) {
+    if (isElectron) {
+      try {
+        if (!task.sqliteId) {
+          const result = await window.electronAPI.saveTask(task);
+          if (result.success) {
+            task.sqliteId = result.id;
+            console.log('💾 Tarefa individual salva no SQLite:', task.text);
+          }
+        } else {
+          await window.electronAPI.updateTask(task);
+          console.log('🔄 Tarefa atualizada no SQLite:', task.text);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao salvar tarefa no SQLite:', error);
+      }
+    } else {
+      saveTasksToLocalStorage();
+    }
+  }
+
+  async function loadTasks() {
+    if (isElectron) {
+      try {
+        const result = await window.electronAPI.getTasks();
+        if (result.success) {
+          tasks = result.data.map(row => ({
+            id: row.id,
+            sqliteId: row.id,
+            text: row.text,
+            date: row.date,
+            dueDate: row.dueDate,
+            completed: Boolean(row.completed),
+            category: row.category
+          }));
+          console.log('📥 Tarefas carregadas do SQLite:', tasks.length);
+          return;
+        }
+      } catch (error) {
+        console.error('❌ Erro ao carregar do SQLite, usando localStorage:', error);
+      }
+    }
+    loadTasksFromLocalStorage();
+  }
+
+  async function deleteTask(taskId) {
+    // Verificar se já existe uma operação de exclusão em andamento para esta tarefa
+    const lockKey = `delete-task-${taskId}`;
+    if (operationLocks.has(lockKey)) {
+      console.log('⏳ Operação de exclusão já em andamento para esta tarefa');
+      return { success: false, error: 'Operação já em andamento' };
+    }
+
+    try {
+      operationLocks.add(lockKey);
+      
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) {
+        showNotification('Tarefa não encontrada!', 'error');
+        return { success: false, error: 'Tarefa não encontrada' };
+      }
+
+      // Confirmação antes de excluir
+      const confirmed = await showConfirmation(
+        `Tem certeza que deseja excluir a tarefa "${task.text}"?`,
+        'Confirmar Exclusão'
+      );
+      
+      if (!confirmed) {
+        return { success: false, error: 'Operação cancelada pelo usuário' };
+      }
+
+      let result = { success: true };
+
+      // Usar persistenceManager se disponível
+      if (persistenceManager) {
+        result = await persistenceManager.deleteTask(taskId);
+      } else if (isElectron && task.sqliteId) {
+        // Fallback para API direta do Electron
+        try {
+          await window.electronAPI.deleteTask(task.sqliteId);
+          console.log('🗑️ Tarefa deletada do SQLite');
+        } catch (error) {
+          console.error('❌ Erro ao deletar do SQLite:', error);
+          result = { success: false, error: error.message };
+        }
+      }
+
+      if (result.success) {
+        // Remover da array local
+        tasks = tasks.filter(t => t.id !== taskId);
+        
+        // Salvar em localStorage se não for Electron
+        if (!isElectron) {
+          saveTasksToLocalStorage();
+        }
+
+        showNotification('Tarefa excluída com sucesso!', 'success');
+        console.log('✅ Tarefa excluída:', task.text);
+        
+        // Atualizar estatísticas
+        updateStatistics();
+        
+        return { success: true };
+      } else {
+        showNotification(`Erro ao excluir tarefa: ${result.error}`, 'error');
+        return result;
+      }
+    } catch (error) {
+      console.error('❌ Erro inesperado ao deletar tarefa:', error);
+      showNotification(`Erro inesperado: ${error.message}`, 'error');
+      return { success: false, error: error.message };
+    } finally {
+      // Sempre remover o lock, mesmo em caso de erro
+      operationLocks.delete(lockKey);
+    }
+  }
+
+  // TRANSACTIONS
+  async function saveTransactions() {
+    if (isElectron) {
+      try {
+        // Salvar apenas transações que não têm sqliteId (novas)
+        for (const transaction of transactions) {
+          if (!transaction.sqliteId) {
+            const result = await window.electronAPI.saveTransaction(transaction);
+            if (result.success) {
+              transaction.sqliteId = result.id;
+              console.log('💾 Nova transação salva no SQLite:', transaction.description);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erro ao salvar no SQLite, usando localStorage:', error);
+        saveTransactionsToLocalStorage();
+      }
+    } else {
+      saveTransactionsToLocalStorage();
+    }
+  }
+
+  async function saveTransaction(transaction) {
+    if (isElectron) {
+      try {
+        if (!transaction.sqliteId) {
+          const result = await window.electronAPI.saveTransaction(transaction);
+          if (result.success) {
+            transaction.sqliteId = result.id;
+            console.log('💾 Transação individual salva no SQLite:', transaction.description);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erro ao salvar transação no SQLite:', error);
+      }
+    } else {
+      saveTransactionsToLocalStorage();
+    }
+  }
+
+  async function loadTransactions() {
+    if (isElectron) {
+      try {
+        const result = await window.electronAPI.getTransactions();
+        if (result.success) {
+          transactions = result.data.map(row => ({
+            id: row.id,
+            sqliteId: row.id,
+            value: row.value,
+            description: row.description,
+            type: row.type,
+            category: row.category,
+            date: row.date
+          }));
+          console.log('📥 Transações carregadas do SQLite:', transactions.length);
+          return;
+        }
+      } catch (error) {
+        console.error('❌ Erro ao carregar do SQLite, usando localStorage:', error);
+      }
+    }
+    loadTransactionsFromLocalStorage();
+  }
+
+  async function deleteTransaction(transactionId) {
+    const transaction = transactions.find(t => t.id === transactionId);
+    if (isElectron && transaction && transaction.sqliteId) {
+      try {
+        await window.electronAPI.deleteTransaction(transaction.sqliteId);
+        console.log('🗑️ Transação deletada do SQLite');
+      } catch (error) {
+        console.error('❌ Erro ao deletar do SQLite:', error);
+      }
+    }
+    transactions = transactions.filter(t => t.id !== transactionId);
+    if (!isElectron) saveTransactionsToLocalStorage();
+  }
+
+  // GOALS
+  async function saveGoals() {
+    if (isElectron) {
+      try {
+        // Salvar apenas metas que não têm sqliteId (novas)
+        for (const goal of goals) {
+          if (!goal.sqliteId) {
+            const result = await window.electronAPI.saveGoal(goal);
+            if (result.success) {
+              goal.sqliteId = result.id;
+              console.log('💾 Nova meta salva no SQLite:', goal.description);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erro ao salvar no SQLite, usando localStorage:', error);
+        saveGoalsToLocalStorage();
+      }
+    } else {
+      saveGoalsToLocalStorage();
+    }
+  }
+
+  async function saveGoal(goal) {
+    if (persistenceManager) {
+      try {
+        await persistenceManager.saveGoal(goal);
+        console.log('✅ Meta salva via PersistenceManager:', goal.description);
+      } catch (error) {
+        console.error('❌ Erro ao salvar meta:', error);
+      }
+    } else {
+      // Fallback para localStorage
+      saveGoalsToLocalStorage();
+    }
+  }
+
+  async function loadGoals() {
+    if (isElectron) {
+      try {
+        const result = await window.electronAPI.getGoals();
+        if (result.success) {
+          goals = result.data.map(row => ({
+            id: row.id,
+            sqliteId: row.id,
+            amount: row.amount,
+            description: row.description,
+            date: row.date,
+            saved: row.saved
+          }));
+          console.log('📥 Metas carregadas do SQLite:', goals.length);
+          return;
+        }
+      } catch (error) {
+        console.error('❌ Erro ao carregar do SQLite, usando localStorage:', error);
+      }
+    }
+    loadGoalsFromLocalStorage();
+  }
+
+  async function deleteGoal(goalId) {
+    const goal = goals.find(g => g.id === goalId);
+    
+    if (persistenceManager && goal) {
+      try {
+        await persistenceManager.deleteGoal(goalId);
+        console.log('✅ Meta deletada via PersistenceManager');
+      } catch (error) {
+        console.error('❌ Erro ao deletar meta:', error);
+      }
+    }
+    
+    // Remover da lista local
+    goals = goals.filter(g => g.id !== goalId);
+    
+    // Fallback para localStorage se não tiver PersistenceManager
+    if (!persistenceManager) {
+      saveGoalsToLocalStorage();
+    }
+  }
+
+  // BUDGETS
+  async function saveBudgets() {
+    if (persistenceManager) {
+      try {
+        for (const budget of budgets) {
+          await persistenceManager.saveBudget(budget);
+        }
+        console.log('✅ Orçamentos salvos via PersistenceManager');
+      } catch (error) {
+        console.error('❌ Erro ao salvar orçamentos:', error);
+        // Fallback para localStorage
+        saveBudgetsToLocalStorage();
+      }
+    } else {
+      // Fallback para localStorage
+      saveBudgetsToLocalStorage();
+    }
+  }
+
+  async function loadBudgets() {
+    if (isElectron) {
+      try {
+        const result = await window.electronAPI.getBudgets();
+        if (result.success) {
+          budgets = result.data.map(row => ({
+            id: row.id,
+            sqliteId: row.id,
+            category: row.category,
+            limit: row.limit_amount,
+            spent: row.spent
+          }));
+          console.log('📥 Orçamentos carregados do SQLite:', budgets.length);
+          return;
+        }
+      } catch (error) {
+        console.error('❌ Erro ao carregar do SQLite, usando localStorage:', error);
+      }
+    }
+    loadBudgetsFromLocalStorage();
+  }
+
+  async function deleteBudget(budgetId) {
+    const budget = budgets.find(b => b.id === budgetId);
+    
+    if (persistenceManager && budget) {
+      try {
+        await persistenceManager.deleteBudget(budgetId);
+        console.log('✅ Orçamento deletado via PersistenceManager');
+      } catch (error) {
+        console.error('❌ Erro ao deletar orçamento:', error);
+      }
+    }
+    
+    // Remover da lista local
+    budgets = budgets.filter(b => b.id !== budgetId);
+    
+    // Fallback para localStorage se não tiver PersistenceManager
+    if (!persistenceManager) {
+      saveBudgetsToLocalStorage();
+    }
+  }
+
+  // MIGRAÇÃO AUTOMÁTICA
+  async function migrateFromLocalStorageToSQLite() {
+    if (!isElectron) return;
+    
+    try {
+      const localTasks = localStorage.getItem('tarefasCash_tasks');
+      const localTransactions = localStorage.getItem('tarefasCash_transactions');
+      const localGoals = localStorage.getItem('tarefasCash_goals');
+      const localBudgets = localStorage.getItem('tarefasCash_budgets');
+
+      const hasLocalData = localTasks || localTransactions || localGoals || localBudgets;
+      
+      if (hasLocalData) {
+        console.log('📦 Dados encontrados no localStorage, iniciando migração...');
+        
+        const migrationData = {
+          tasks: localTasks ? JSON.parse(localTasks) : [],
+          transactions: localTransactions ? JSON.parse(localTransactions) : [],
+          goals: localGoals ? JSON.parse(localGoals) : [],
+          budgets: localBudgets ? JSON.parse(localBudgets) : []
+        };
+
+        const result = await window.electronAPI.migrateFromLocalStorage(migrationData);
+        
+        if (result.success) {
+          console.log('✅ Migração concluída com sucesso!');
+          
+          // Limpar localStorage após migração bem-sucedida
+          localStorage.removeItem('tarefasCash_tasks');
+          localStorage.removeItem('tarefasCash_transactions');
+          localStorage.removeItem('tarefasCash_goals');
+          localStorage.removeItem('tarefasCash_budgets');
+          
+          console.log('🧹 localStorage limpo após migração');
+        } else {
+          console.error('❌ Erro na migração:', result.error);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro durante migração:', error);
+    }
+  }
+
+  // Função para limpar duplicatas (executar uma vez se necessário)
+  async function cleanDuplicates() {
+    if (!isElectron) return;
+    
+    try {
+      console.log('🧹 Limpando possíveis duplicatas...');
+      
+      // Obter todos os dados atuais
+      await loadTasks();
+      await loadTransactions();
+      await loadGoals();
+      await loadBudgets();
+      
+      // Remover duplicatas baseado no texto/descrição e data
+      const uniqueTasks = [];
+      const seenTasks = new Set();
+      
+      tasks.forEach(task => {
+        const key = `${task.text}-${task.date}`;
+        if (!seenTasks.has(key)) {
+          seenTasks.add(key);
+          uniqueTasks.push(task);
+        }
+      });
+      
+      if (uniqueTasks.length !== tasks.length) {
+        console.log(`🔧 Removendo ${tasks.length - uniqueTasks.length} tarefas duplicadas`);
+        tasks = uniqueTasks;
+      }
+      
+      console.log('✅ Limpeza concluída!');
+    } catch (error) {
+      console.error('❌ Erro na limpeza:', error);
+    }
+  }
+
+  // Função para resetar completamente o banco de dados (usar apenas se necessário)
+  async function resetDatabase() {
+    if (!isElectron) {
+      // Limpar localStorage
+      localStorage.removeItem('tarefasCash_tasks');
+      localStorage.removeItem('tarefasCash_transactions');
+      localStorage.removeItem('tarefasCash_goals');
+      localStorage.removeItem('tarefasCash_budgets');
+      console.log('🗑️ localStorage limpo');
+      return;
+    }
+    
+    try {
+      console.log('🗑️ Resetando banco de dados SQLite...');
+      
+      // Limpar arrays locais
+      tasks = [];
+      transactions = [];
+      goals = [];
+      budgets = [];
+      
+      // Se houver função de reset no Electron, usar
+      if (window.electronAPI && window.electronAPI.resetDatabase) {
+        await window.electronAPI.resetDatabase();
+      }
+      
+      console.log('✅ Banco de dados resetado!');
+    } catch (error) {
+      console.error('❌ Erro ao resetar banco:', error);
     }
   }
 
   // Função para carregar todos os dados
-  function loadAllData() {
-    console.log('🔄 Carregando dados do localStorage...');
-    loadTasksFromLocalStorage();
-    loadTransactionsFromLocalStorage();
-    loadGoalsFromLocalStorage();
-    loadBudgetsFromLocalStorage();
+  async function loadAllData() {
+    console.log('🔄 Carregando dados...');
+    
+    if (isElectron) {
+      // Limpar localStorage no Electron para evitar conflitos
+      console.log('🧹 Limpando localStorage no modo Electron...');
+      localStorage.removeItem('tarefasCash_tasks');
+      localStorage.removeItem('tarefasCash_transactions');
+      localStorage.removeItem('tarefasCash_goals');
+      localStorage.removeItem('tarefasCash_budgets');
+      
+      // Migração automática apenas se os arrays estão vazios (primeiro carregamento)
+      const hasDataLoaded = tasks.length > 0 || transactions.length > 0 || goals.length > 0 || budgets.length > 0;
+      if (!hasDataLoaded) {
+        await migrateFromLocalStorageToSQLite();
+      } else {
+        console.log('📋 Dados já carregados, pulando migração');
+      }
+    }
+    
+    // Carregar dados do banco apropriado
+    await loadTasks();
+    await loadTransactions();
+    await loadGoals();
+    await loadBudgets();
+    
+    // Limpeza automática de possíveis duplicatas baseada em IDs únicos
+    if (isElectron) {
+      await autocleanDuplicates();
+    }
+    
+    // Marcar que os dados foram carregados
+    dataLoaded = true;
+    
     console.log('✅ Dados carregados:', {
       tasks: tasks.length,
       transactions: transactions.length,
       goals: goals.length,
       budgets: budgets.length
     });
+    
+    // Forçar atualização de todas as views após carregar dados
+    setTimeout(() => {
+      forceReloadAllViews();
+      
+      // Garantir que o resumo financeiro seja atualizado corretamente
+      setTimeout(() => {
+        updateFinancialSummary();
+        console.log('💰 Resumo financeiro forçadamente atualizado após carregamento');
+      }, 200);
+    }, 100);
   }
 
-  // Função para salvar todos os dados
-  function saveAllData() {
-    saveTasksToLocalStorage();
-    saveTransactionsToLocalStorage();
-    saveGoalsToLocalStorage();
-    saveBudgetsToLocalStorage();
-    console.log('💾 Todos os dados salvos no localStorage');
+  // Função para limpeza automática de duplicatas baseada em IDs únicos
+  async function autocleanDuplicates() {
+    try {
+      // Limpar duplicatas de tarefas baseado em ID único
+      const uniqueTasks = [];
+      const seenTaskIds = new Set();
+      tasks.forEach(task => {
+        if (!seenTaskIds.has(task.id)) {
+          seenTaskIds.add(task.id);
+          uniqueTasks.push(task);
+        }
+      });
+      
+      // Limpar duplicatas de transações
+      const uniqueTransactions = [];
+      const seenTransactionIds = new Set();
+      transactions.forEach(transaction => {
+        if (!seenTransactionIds.has(transaction.id)) {
+          seenTransactionIds.add(transaction.id);
+          uniqueTransactions.push(transaction);
+        }
+      });
+      
+      // Limpar duplicatas de metas
+      const uniqueGoals = [];
+      const seenGoalIds = new Set();
+      goals.forEach(goal => {
+        if (!seenGoalIds.has(goal.id)) {
+          seenGoalIds.add(goal.id);
+          uniqueGoals.push(goal);
+        }
+      });
+      
+      // Limpar duplicatas de orçamentos
+      const uniqueBudgets = [];
+      const seenBudgetIds = new Set();
+      budgets.forEach(budget => {
+        if (!seenBudgetIds.has(budget.id)) {
+          seenBudgetIds.add(budget.id);
+          uniqueBudgets.push(budget);
+        }
+      });
+      
+      // Verificar se houve duplicatas e atualizar arrays
+      const removedTasks = tasks.length - uniqueTasks.length;
+      const removedTransactions = transactions.length - uniqueTransactions.length;
+      const removedGoals = goals.length - uniqueGoals.length;
+      const removedBudgets = budgets.length - uniqueBudgets.length;
+      
+      if (removedTasks + removedTransactions + removedGoals + removedBudgets > 0) {
+        console.log(`🧹 Removendo duplicatas: ${removedTasks} tarefas, ${removedTransactions} transações, ${removedGoals} metas, ${removedBudgets} orçamentos`);
+        
+        tasks = uniqueTasks;
+        transactions = uniqueTransactions;
+        goals = uniqueGoals;
+        budgets = uniqueBudgets;
+      }
+    } catch (error) {
+      console.error('❌ Erro na limpeza automática:', error);
+    }
   }
 
-  // Função de debug para verificar localStorage
-  function debugLocalStorage() {
-    console.log('🔍 Debug localStorage:');
-    console.log('Tasks:', localStorage.getItem('tarefasCash_tasks'));
-    console.log('Transactions:', localStorage.getItem('tarefasCash_transactions'));
-    console.log('Goals:', localStorage.getItem('tarefasCash_goals'));
-    console.log('Budgets:', localStorage.getItem('tarefasCash_budgets'));
+  // Função para salvar todos os dados (apenas para backup/sincronização)
+  async function saveAllData() {
+    if (isElectron) {
+      console.log('💾 Dados já salvos automaticamente no SQLite');
+    } else {
+      await saveTasks();
+      await saveTransactions();
+      await saveGoals();
+      await saveBudgets();
+      console.log('💾 Todos os dados salvos no localStorage');
+    }
   }
-  
-  const themeSwitcher = document.getElementById("themeSwitcher");
-  function setTheme(theme) {
-    document.body.classList.remove("theme-default", "theme-sunset", "theme-matrix", "theme-pastel");
-    document.body.classList.add(`theme-${theme}`);
-    localStorage.setItem("theme", theme);
-  }
-  if (themeSwitcher) {
-    themeSwitcher.addEventListener("change", (e) => {
-      setTheme(e.target.value);
+
+  // Função para debug - testar resumo financeiro
+  window.debugFinancialSummary = function() {
+    console.log('🔧 DEBUG: Testando resumo financeiro...');
+    console.log('Transações atuais:', transactions);
+    
+    // Verificar se elementos existem
+    const balanceElement = document.querySelector(".balance");
+    const savingsBalanceElement = document.querySelector(".savings-balance");
+    const transactionsBalanceElement = document.querySelector(".transactions-balance");
+    
+    console.log('Elementos encontrados:', {
+      balance: !!balanceElement,
+      savings: !!savingsBalanceElement,
+      transactions: !!transactionsBalanceElement
     });
-    // Carregar tema salvo
-    const savedTheme = localStorage.getItem("theme") || "default";
-    themeSwitcher.value = savedTheme;
-    setTheme(savedTheme);
+    
+    // Forçar atualização
+    updateFinancialSummary();
+    
+    // Verificar valores após atualização
+    setTimeout(() => {
+      console.log('Valores na tela:', {
+        balance: balanceElement?.textContent,
+        savings: savingsBalanceElement?.textContent,
+        transactions: transactionsBalanceElement?.textContent
+      });
+    }, 100);
+  };
+
+  // Função adicional para debug - adicionar transação de teste
+  window.debugAddTestTransaction = async function() {
+    const testTransaction = {
+      id: generateUniqueId(),
+      value: 100,
+      description: "Teste de Debug",
+      type: "receita",
+      category: "outros",
+      date: new Date().toLocaleDateString(),
+    };
+    
+    console.log('🔧 DEBUG: Adicionando transação de teste:', testTransaction);
+    
+    transactions.push(testTransaction);
+    
+    if (persistenceManager) {
+      await persistenceManager.saveTransaction(testTransaction);
+    }
+    
+    updateFinancialSummary();
+    updateTransactionsView();
+    
+    console.log('✅ Transação de teste adicionada');
+  };
+
+  // ===== FUNÇÕES DE INTERFACE (MOVIDAS PARA ANTES DOS EVENT LISTENERS) =====
+  
+  function updateFinancialSummary() {
+    // Sempre obter os elementos do DOM quando a função for chamada
+    const balanceElement = document.querySelector(".balance");
+    const savingsBalanceElement = document.querySelector(".savings-balance");
+    const transactionsBalanceElement = document.querySelector(".transactions-balance");
+    
+    if (!balanceElement || !savingsBalanceElement || !transactionsBalanceElement) {
+      console.log('⚠️ Elementos de balanço não encontrados no DOM');
+      // Tentar novamente após um delay
+      setTimeout(() => {
+        updateFinancialSummary();
+      }, 200);
+      return;
+    }
+
+    const summary = transactions.reduce(
+      (acc, transaction) => {
+        const value = parseFloat(transaction.value) || 0;
+
+        if (transaction.type === "saldo" && transaction.category === "saldo") {
+          acc.savings += value;
+        } else {
+          if (transaction.type === "saldo" || transaction.type === "receita") {
+            acc.transactions += value;
+          } else if (transaction.type === "despesa") {
+            acc.transactions -= value;
+          }
+        }
+        return acc;
+      },
+      { savings: 0, transactions: 0 }
+    );
+
+    const totalBalance = summary.savings + summary.transactions;
+
+    // Atualizar elementos da tela
+    balanceElement.textContent = formatCurrency(totalBalance);
+    savingsBalanceElement.textContent = formatCurrency(summary.savings);
+    transactionsBalanceElement.textContent = formatCurrency(summary.transactions);
+
+    // Aplicar cores baseadas nos valores
+    balanceElement.style.color = totalBalance >= 0 ? "#28a745" : "#dc3545";
+    savingsBalanceElement.style.color = summary.savings >= 0 ? "#28a745" : "#dc3545";
+    transactionsBalanceElement.style.color = summary.transactions >= 0 ? "#28a745" : "#dc3545";
+
+    console.log('💰 Resumo financeiro atualizado:', summary, 'Total:', totalBalance);
+    
+    // Forçar atualização visual com elementos frescos do DOM
+    setTimeout(() => {
+      const freshBalanceElement = document.querySelector(".balance");
+      const freshSavingsBalanceElement = document.querySelector(".savings-balance");
+      const freshTransactionsBalanceElement = document.querySelector(".transactions-balance");
+      
+      if (freshBalanceElement) freshBalanceElement.textContent = formatCurrency(totalBalance);
+      if (freshSavingsBalanceElement) freshSavingsBalanceElement.textContent = formatCurrency(summary.savings);
+      if (freshTransactionsBalanceElement) freshTransactionsBalanceElement.textContent = formatCurrency(summary.transactions);
+    }, 100);
   }
-document.addEventListener("DOMContentLoaded", () => {
-  const taskInput = document.getElementById("taskInput");
-  const taskDueDate = document.getElementById("taskDueDate");
-  const addBtn = document.querySelector(".add-btn");
-  const tasksViews = document.querySelectorAll(".tasks-view"); // Alterado para selecionar todos os .tasks-view
-  const filterStatus = document.getElementById("filterStatus");
-  const filterCategory = document.getElementById("filterCategory");
-  const taskCategory = document.getElementById("taskCategory");
-  // const cartaz3 = document.querySelector(".cartaz-3");
-  const modalTarefas = document.getElementById("modal-tarefas");
-  const closeModalTarefas = document.querySelector(".close-modal-tarefas");
-  const valueInput = document.getElementById("valueInput");
-  const descriptionInput = document.getElementById("descriptionInput");
-  const transactionType = document.getElementById("transactionType");
-  const transactionCategory = document.getElementById("transactionCategory");
-  const addTransactionBtn = document.querySelector(".add-transaction-btn");
-  const balanceElement = document.querySelector(".balance");
-  const filterTransactionType = document.getElementById(
-    "filterTransactionType"
-  );
-  const filterTransactionCategory = document.getElementById(
-    "filterTransactionCategory"
-  );
-  // const transactionsView = document.querySelector(".transactions-view");
-  const transactionsTimeline = document.querySelector(".transactions-timeline");
-  const cartaz2 = document.querySelector(".cartaz-2");
-  const toggleTasksBtn = document.querySelector(".toggle-tasks-btn");
-  const toggleTransactionsBtn = document.querySelector(
-    ".toggle-transactions-btn"
-  );
-  const goalAmount = document.getElementById("goalAmount");
-  const goalDescription = document.getElementById("goalDescription");
-  const goalDate = document.getElementById("goalDate");
-  const addGoalBtn = document.querySelector(".add-goal-btn");
-  const goalsList = document.querySelector(".goals-list");
-  const budgetCategory = document.getElementById("budgetCategory");
-  const budgetLimit = document.getElementById("budgetLimit");
-  const addBudgetBtn = document.querySelector(".add-budget-btn");
-  const budgetList = document.querySelector(".budget-list");
-  const toggleGoalsBtn = document.querySelector(".toggle-goals-btn");
-  const cartazGoals = document.querySelector(".cartaz-goals");
-  const savingsBalanceElement = document.querySelector(".savings-balance");
-  const transactionsBalanceElement = document.querySelector(
-    ".transactions-balance"
-  );
-  // Elementos do modal de metas
-  const modalGoals = document.getElementById("modal-goals");
-  const closeModalGoals = document.querySelector(".close-modal-goals");
-  const toggleGoalsModalBtn = document.querySelector(".toggle-goals-modal-btn");
-  const goalsListModal = document.querySelector(".goals-list-modal");
+
+  function updateTransactionsView() {
+    // Sempre obter os elementos do DOM quando a função for chamada
+    const transactionsTimeline = document.querySelector(".transactions-timeline");
+    const filterTransactionType = document.getElementById("filterTransactionType");
+    const filterTransactionCategory = document.getElementById("filterTransactionCategory");
+    
+    if (!transactionsTimeline) {
+      console.log('⚠️ Timeline de transações não encontrada no DOM');
+      return;
+    }
+    
+    transactionsTimeline.innerHTML = "";
+
+    const typeFilter = filterTransactionType?.value || "todas";
+    const categoryFilter = filterTransactionCategory?.value || "";
+
+    const filteredTransactions = transactions.filter((transaction) => {
+      const matchesType =
+        typeFilter === "todas" || transaction.type === typeFilter;
+      const matchesCategory =
+        !categoryFilter || transaction.category === categoryFilter;
+      return matchesType && matchesCategory;
+    });
+
+    if (filteredTransactions.length === 0) {
+      transactionsTimeline.innerHTML = "<p style='text-align:center;color:#aaa;'>Nenhuma transação encontrada</p>";
+      return;
+    }
+
+    filteredTransactions.forEach((transaction) => {
+      const transactionElement = document.createElement("div");
+      transactionElement.classList.add("transaction-item", transaction.type);
+
+      // Ícone por tipo
+      let icon = '';
+      if (transaction.type === 'receita') icon = '💸';
+      else if (transaction.type === 'despesa') icon = '🛒';
+      else if (transaction.type === 'saldo') icon = '🏦';
+
+      transactionElement.innerHTML = `
+        <div class="transaction-content">
+          <span class="transaction-icon">${icon}</span>
+          <span class="transaction-value ${transaction.type}">
+            ${formatCurrency(transaction.value)}
+          </span>
+        </div>
+        <div class="transaction-meta">
+          <span class="transaction-description">${transaction.description}</span><br>
+          <span class="transaction-category">${transaction.category}</span> |
+          <span class="transaction-date">${transaction.date}</span>
+        </div>
+        <div class="transaction-actions">
+          <button class="delete-transaction-btn" title="Excluir">✖</button>
+        </div>
+      `;
+
+      const deleteBtn = transactionElement.querySelector(
+        ".delete-transaction-btn"
+      );
+      deleteBtn.addEventListener("click", async () => {
+        await deleteTransaction(transaction.id); // Usar função híbrida
+        updateFinancialSummary();
+        updateTransactionsView();
+      });
+
+      transactionsTimeline.appendChild(transactionElement);
+    });
+  }
+
+  function updateGoalsList() {
+    const goalsList = document.querySelector(".goals-list");
+    if (!goalsList) return;
+    goalsList.innerHTML = "";
+    goals.forEach((goal) => {
+      const amount = parseFloat(goal.amount) || 0;
+      const saved = parseFloat(goal.saved) || 0;
+      const progress = (saved / amount) * 100 || 0;
+
+      const remainingDays = Math.ceil(
+        (new Date(goal.date) - new Date()) / (1000 * 60 * 60 * 24)
+      );
+
+      const goalElement = document.createElement("div");
+      goalElement.classList.add("goal-item");
+      goalElement.innerHTML = `
+        <div>
+          <strong>${goal.description}</strong>
+          <div>Meta: ${formatCurrency(amount)}</div>
+          <div>Poupado: ${formatCurrency(saved)} (${progress.toFixed(1)}%)</div>
+          <div>Prazo: ${remainingDays} dias</div>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: ${progress}%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="goal-actions">
+          <button class="add-savings-btn">💵</button>
+          <button class="delete-btn">❌</button>
+        </div>
+      `;
+
+      const addSavingsBtn = goalElement.querySelector(".add-savings-btn");
+      const deleteBtn = goalElement.querySelector(".delete-btn");
+
+      addSavingsBtn.addEventListener("click", async () => {
+        const amount = await showValueInput("Valor da poupança (R$)", "Adicionar à Poupança");
+        if (amount !== null && amount > 0) {
+          const transaction = {
+            id: generateUniqueId(),
+            value: amount,
+            description: `Poupança para ${goal.description}`,
+            type: "saldo",
+            category: "saldo",
+            date: new Date().toLocaleDateString(),
+          };
+
+          transactions.push(transaction);
+          goal.saved += amount;
+          await saveTransaction(transaction); // Usar função individual
+          await saveGoal(goal); // Usar função individual
+          updateFinancialSummary();
+          updateTransactionsView();
+          updateGoalsList();
+          showSuccess(`R$ ${amount.toFixed(2)} adicionado à meta "${goal.description}"!`);
+        }
+      });
+
+      deleteBtn.addEventListener("click", async () => {
+        if (confirm("Tem certeza que deseja excluir esta meta?")) {
+          await deleteGoal(goal.id); // Usar função híbrida
+          updateGoalsList();
+        }
+      });
+
+      goalsList.appendChild(goalElement);
+    });
+
+    if (goals.length === 0) {
+      goalsList.innerHTML = '<p class="no-goals">Nenhuma meta cadastrada</p>';
+    }
+  }
+
+  function updateBudgetList() {
+    const budgetList = document.querySelector(".budget-list");
+    if (!budgetList) return;
+    budgetList.innerHTML = "";
+    budgets.forEach((budget) => {
+      const spent = transactions
+        .filter((t) => t.category === budget.category && t.type === "despesa")
+        .reduce((sum, t) => sum + t.value, 0);
+
+      const progress = (spent / budget.limit) * 100;
+      const progressClass =
+        progress >= 100 ? "danger" : progress >= 80 ? "warning" : "";
+
+      const budgetElement = document.createElement("div");
+      budgetElement.classList.add("budget-item");
+      budgetElement.innerHTML = `
+        <div>
+          <strong>${budget.category}</strong>
+          <div>Limite: ${formatCurrency(budget.limit)}</div>
+          <div>Gasto: ${formatCurrency(spent)} (${progress.toFixed(1)}%)</div>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill ${progressClass}" style="width: ${progress}%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="budget-actions">
+          <button class="add-expense-btn">💰</button>
+          <button class="delete-btn">❌</button>
+        </div>
+      `;
+
+      budgetList.appendChild(budgetElement);
+
+      const addExpenseBtn = budgetElement.querySelector(".add-expense-btn");
+      addExpenseBtn.addEventListener("click", async () => {
+        const amount = await showValueInput("Valor do gasto (R$)", "Adicionar Gasto");
+        if (amount !== null && amount > 0) {
+          const transaction = {
+            id: generateUniqueId(),
+            value: amount,
+            description: `Gasto em ${budget.category}`,
+            type: "despesa",
+            category: budget.category,
+            date: new Date().toLocaleDateString(),
+          };
+
+          transactions.push(transaction);
+          await saveTransaction(transaction); // Usar função individual
+          updateFinancialSummary();
+          updateTransactionsView();
+          updateBudgetList();
+          showSuccess(`Gasto de R$ ${amount.toFixed(2)} adicionado na categoria "${budget.category}"!`);
+        }
+      });
+
+      budgetElement
+        .querySelector(".delete-btn")
+        .addEventListener("click", async () => {
+          if (confirm("Tem certeza que deseja excluir este orçamento?")) {
+            await deleteBudget(budget.id); // Usar função híbrida
+            updateBudgetList();
+          }
+        });
+    });
+  }
+
+  function formatCurrency(value) {
+    if (value === undefined || value === null || isNaN(value)) {
+      return "R$ 0,00";
+    }
+
+    return value.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+  }
+
+  function clearTransactionForm() {
+    const valueInput = document.getElementById("valueInput");
+    const descriptionInput = document.getElementById("descriptionInput");
+    const transactionType = document.getElementById("transactionType");
+    const transactionCategory = document.getElementById("transactionCategory");
+    
+    if (valueInput) valueInput.value = "";
+    if (descriptionInput) descriptionInput.value = "";
+    if (transactionType) transactionType.value = "receita";
+    if (transactionCategory) transactionCategory.value = "";
+  }
+
+  // Função para atualizar estatísticas
+  function updateStatistics() {
+    console.log('📊 Atualizando estatísticas...');
+    
+    const receitas = transactions
+      .filter(t => t.type === 'receita')
+      .reduce((sum, t) => sum + (parseFloat(t.value) || 0), 0);
+    const despesas = transactions
+      .filter(t => t.type === 'despesa')
+      .reduce((sum, t) => sum + (parseFloat(t.value) || 0), 0);
+    const saldos = transactions
+      .filter(t => t.type === 'saldo')
+      .reduce((sum, t) => sum + (parseFloat(t.value) || 0), 0);
+    
+    // Categoria mais gasta
+    let categoriaMaisGasta = '-';
+    let valorCategoriaMaisGasta = 0;
+    if (despesas > 0) {
+      const categorias = {};
+      transactions
+        .filter(t => t.type === 'despesa')
+        .forEach(t => {
+          categorias[t.category] = (categorias[t.category] || 0) + (parseFloat(t.value) || 0);
+        });
+      const entries = Object.entries(categorias);
+      if (entries.length > 0) {
+        const topCategory = entries.sort((a, b) => b[1] - a[1])[0];
+        categoriaMaisGasta = topCategory[0];
+        valorCategoriaMaisGasta = topCategory[1];
+      }
+    }
+
+    // Calcular estatísticas adicionais
+    const receitasArray = transactions.filter(t => t.type === 'receita').map(t => parseFloat(t.value) || 0);
+    const despesasArray = transactions.filter(t => t.type === 'despesa').map(t => parseFloat(t.value) || 0);
+    
+    const mediaReceitas = receitasArray.length > 0 ? receitasArray.reduce((a, b) => a + b, 0) / receitasArray.length : 0;
+    const mediaDespesas = despesasArray.length > 0 ? despesasArray.reduce((a, b) => a + b, 0) / despesasArray.length : 0;
+    const maiorReceita = receitasArray.length > 0 ? Math.max(...receitasArray) : 0;
+    const menorReceita = receitasArray.length > 0 ? Math.min(...receitasArray) : 0;
+    const maiorDespesa = despesasArray.length > 0 ? Math.max(...despesasArray) : 0;
+    const menorDespesa = despesasArray.length > 0 ? Math.min(...despesasArray) : 0;
+
+    // Atualizar elementos na tela se existirem
+    const elements = {
+      'stat-receitas': `R$ ${receitas.toFixed(2)}`,
+      'stat-despesas': `R$ ${despesas.toFixed(2)}`,
+      'stat-categoria': categoriaMaisGasta,
+      'stat-meta': `R$ ${goals.reduce((sum, g) => sum + (parseFloat(g.amount) || 0), 0).toFixed(2)}`,
+      'stat-media-despesas': `R$ ${mediaDespesas.toFixed(2)}`,
+      'stat-qtd-transacoes': transactions.length.toString(),
+      'stat-percentual': receitas > 0 ? `${((receitas - despesas) / receitas * 100).toFixed(1)}%` : '0%',
+      'stat-maior-despesa': `R$ ${maiorDespesa.toFixed(2)}`,
+      'stat-menor-despesa': despesasArray.length > 0 ? `R$ ${menorDespesa.toFixed(2)}` : 'R$ 0,00',
+      
+      // Sub-estatísticas
+      'substat-receita-media': `R$ ${mediaReceitas.toFixed(2)}`,
+      'substat-receita-maior': `R$ ${maiorReceita.toFixed(2)}`,
+      'substat-receita-menor': receitasArray.length > 0 ? `R$ ${menorReceita.toFixed(2)}` : 'R$ 0,00',
+      'substat-receita-qtd': receitasArray.length.toString(),
+      'substat-despesa-media': `R$ ${mediaDespesas.toFixed(2)}`,
+      'substat-despesa-maior': `R$ ${maiorDespesa.toFixed(2)}`,
+      'substat-despesa-menor': despesasArray.length > 0 ? `R$ ${menorDespesa.toFixed(2)}` : 'R$ 0,00',
+      'substat-despesa-qtd': despesasArray.length.toString(),
+      'substat-categoria-valor': `R$ ${valorCategoriaMaisGasta.toFixed(2)}`,
+      'substat-categoria-pct': despesas > 0 ? `${(valorCategoriaMaisGasta / despesas * 100).toFixed(1)}%` : '0%',
+      'substat-meta-qtd': goals.length.toString(),
+      'substat-meta-media': goals.length > 0 ? `R$ ${(goals.reduce((sum, g) => sum + (parseFloat(g.amount) || 0), 0) / goals.length).toFixed(2)}` : 'R$ 0,00',
+      'substat-qtd-receitas': receitasArray.length.toString(),
+      'substat-qtd-despesas': despesasArray.length.toString(),
+      'substat-qtd-saldo': transactions.filter(t => t.type === 'saldo').length.toString(),
+      'substat-percentual-receitas': `R$ ${receitas.toFixed(2)}`,
+      'substat-percentual-despesas': `R$ ${despesas.toFixed(2)}`
+    };
+
+    // Atualizar todos os elementos
+    Object.entries(elements).forEach(([id, value]) => {
+      const element = document.getElementById(id);
+      if (element) {
+        element.textContent = value;
+      }
+    });
+
+    // Configurar interatividade aos itens de estatística (apenas se ainda não configurado)
+    setupStatisticsInteractivity();
+    
+    console.log('✅ Estatísticas atualizadas:', { receitas, despesas, saldos, categoriaMaisGasta, totalTransactions: transactions.length });
+  }
+
+  // Função para configurar interatividade das estatísticas (executada apenas uma vez)
+  let statisticsInteractivitySetup = false;
+  function setupStatisticsInteractivity() {
+    if (statisticsInteractivitySetup) return; // Evitar configuração múltipla
+    
+    // Usar delegação de eventos no container pai
+    const statisticsSection = document.querySelector('.statistics-section');
+    if (!statisticsSection) {
+      console.log('⚠️ Seção de estatísticas não encontrada');
+      return;
+    }
+    
+    // Event delegation: um único listener no container pai
+    statisticsSection.addEventListener('click', (e) => {
+      // Verificar se o clique foi em um item de estatística ou seus filhos
+      const statItem = e.target.closest('.stat-item');
+      if (!statItem) return;
+      
+      const statType = statItem.getAttribute('data-stat');
+      if (!statType) return;
+      
+      // Encontrar o substats correspondente
+      const substats = statItem.querySelector('.substats');
+      if (!substats) return;
+      
+      // Toggle da visibilidade usando classes CSS (melhor performance)
+      const isVisible = substats.classList.contains('show');
+      
+      if (isVisible) {
+        substats.classList.remove('show');
+        substats.style.display = 'none';
+      } else {
+        substats.classList.add('show');
+        substats.style.display = 'block';
+      }
+      
+      // Adicionar feedback visual ao item clicado
+      statItem.classList.add('clicked');
+      setTimeout(() => {
+        statItem.classList.remove('clicked');
+      }, 150);
+      
+      console.log(`📊 Estatística expandida/recolhida: ${statType}`);
+    });
+    
+    statisticsInteractivitySetup = true;
+    console.log('✅ Interatividade das estatísticas configurada');
+  }
+
+  // Função para renderizar gráfico
+  function renderFinanceChart(type = 'bar') {
+    const ctx = document.getElementById('financeChart');
+    if (!ctx) {
+      console.log('⚠️ Canvas do gráfico não encontrado');
+      return;
+    }
+
+    const receitas = transactions
+      .filter(t => t.type === 'receita')
+      .reduce((sum, t) => sum + t.value, 0);
+    const despesas = transactions
+      .filter(t => t.type === 'despesa')
+      .reduce((sum, t) => sum + t.value, 0);
+    const saldo = receitas - despesas;
+
+    // Destruir gráfico anterior se existir
+    if (window.financeChartInstance) {
+      window.financeChartInstance.destroy();
+    }
+
+    try {
+      window.financeChartInstance = new Chart(ctx, {
+        type: type,
+        data: {
+          labels: ['Receitas', 'Despesas', 'Saldo'],
+          datasets: [{
+            label: 'Valores',
+            data: [receitas, despesas, saldo],
+            backgroundColor: ['#4caf50', '#f44336', '#2196f3'],
+            borderColor: ['#4caf50', '#f44336', '#2196f3'],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { 
+              display: true,
+              position: 'top'
+            },
+            title: {
+              display: true,
+              text: 'Resumo Financeiro'
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return 'R$ ' + value.toFixed(2);
+                }
+              }
+            }
+          }
+        }
+      });
+      console.log('📈 Gráfico renderizado com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao renderizar gráfico:', error);
+    }
+  }
+
+  // Configuração de Tema
+  function setupThemeSwitcher() {
+    const themeSwitcher = document.getElementById("themeSwitcher");
+    function setTheme(theme) {
+      document.body.classList.remove("theme-default", "theme-sunset", "theme-matrix", "theme-pastel");
+      document.body.classList.add(`theme-${theme}`);
+      localStorage.setItem("theme", theme);
+    }
+    if (themeSwitcher) {
+      themeSwitcher.addEventListener("change", (e) => {
+        setTheme(e.target.value);
+      });
+      // Carregar tema salvo
+      const savedTheme = localStorage.getItem("theme") || "default";
+      themeSwitcher.value = savedTheme;
+      setTheme(savedTheme);
+    }
+  }
+
+  // Configuração dos Event Listeners dos Elementos DOM
+  function setupDOMEventListeners() {
+    // Elementos DOM
+    const taskInput = document.getElementById("taskInput");
+    const taskDueDate = document.getElementById("taskDueDate");
+    const addBtn = document.querySelector(".add-btn");
+    const tasksViews = document.querySelectorAll(".tasks-view");
+    const filterStatus = document.getElementById("filterStatus");
+    const filterCategory = document.getElementById("filterCategory");
+    const taskCategory = document.getElementById("taskCategory");
+    const modalTarefas = document.getElementById("modal-tarefas");
+    const closeModalTarefas = document.querySelector(".close-modal-tarefas");
+    const valueInput = document.getElementById("valueInput");
+    const descriptionInput = document.getElementById("descriptionInput");
+    const transactionType = document.getElementById("transactionType");
+    const transactionCategory = document.getElementById("transactionCategory");
+    const addTransactionBtn = document.querySelector(".add-transaction-btn");
+    const balanceElement = document.querySelector(".balance");
+    const filterTransactionType = document.getElementById("filterTransactionType");
+    const filterTransactionCategory = document.getElementById("filterTransactionCategory");
+    const transactionsTimeline = document.querySelector(".transactions-timeline");
+    const cartaz2 = document.querySelector(".cartaz-2");
+    const toggleTasksBtn = document.querySelector(".toggle-tasks-btn");
+    const toggleTransactionsBtn = document.querySelector(".toggle-transactions-btn");
+    const goalAmount = document.getElementById("goalAmount");
+    const goalDescription = document.getElementById("goalDescription");
+    const goalDate = document.getElementById("goalDate");
+    const addGoalBtn = document.querySelector(".add-goal-btn");
+    const goalsList = document.querySelector(".goals-list");
+    const budgetCategory = document.getElementById("budgetCategory");
+    const budgetLimit = document.getElementById("budgetLimit");
+    const addBudgetBtn = document.querySelector(".add-budget-btn");
+    const budgetList = document.querySelector(".budget-list");
+    const toggleGoalsBtn = document.querySelector(".toggle-goals-btn");
+    const cartazGoals = document.querySelector(".cartaz-goals");
+    const savingsBalanceElement = document.querySelector(".savings-balance");
+    const transactionsBalanceElement = document.querySelector(".transactions-balance");
+    const modalGoals = document.getElementById("modal-goals");
+    const closeModalGoals = document.querySelector(".close-modal-goals");
+    const toggleGoalsModalBtn = document.querySelector(".toggle-goals-modal-btn");
+    const goalsListModal = document.querySelector(".goals-list-modal");
+
+    // Event listener para adicionar tarefas
+    if (addBtn && taskInput) {
+      addBtn.addEventListener("click", () => {
+        const taskText = taskInput.value.trim();
+        if (taskText) {
+          addTask(taskText);
+          taskInput.value = "";
+        }
+      });
+    }
+
+    // Event listener para Enter no input de tarefas
+    if (taskInput) {
+      taskInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          const taskText = taskInput.value.trim();
+          if (taskText) {
+            addTask(taskText);
+            taskInput.value = "";
+          }
+        }
+      });
+    }
   // Função para atualizar a lista de metas no modal
   function updateGoalsListModal() {
     if (!goalsListModal) return;
@@ -181,11 +1897,11 @@ document.addEventListener("DOMContentLoaded", () => {
       `;
       // Botão de adicionar poupança
       const addSavingsBtn = goalElement.querySelector(".add-savings-btn");
-      addSavingsBtn.addEventListener("click", () => {
-        const amount = parseFloat(prompt("Quanto você quer adicionar à poupança?"));
-        if (!isNaN(amount) && amount > 0) {
+      addSavingsBtn.addEventListener("click", async () => {
+        const amount = await showValueInput("Valor da poupança (R$)", "Adicionar à Poupança");
+        if (amount !== null && amount > 0) {
           const transaction = {
-            id: Date.now(),
+            id: generateUniqueId(),
             value: amount,
             description: `Poupança para ${goal.description}`,
             type: "saldo",
@@ -194,20 +1910,20 @@ document.addEventListener("DOMContentLoaded", () => {
           };
           transactions.push(transaction);
           goal.saved += amount;
-          saveTransactionsToLocalStorage(); // Salvar transação
-          saveGoalsToLocalStorage(); // Salvar meta atualizada
+          await saveTransaction(transaction); // Usar função individual
+          await saveGoal(goal); // Usar função individual
           updateFinancialSummary();
           updateTransactionsView();
           updateGoalsList();
           updateGoalsListModal();
+          showSuccess(`R$ ${amount.toFixed(2)} adicionado à meta "${goal.description}"!`);
         }
       });
       // Botão de deletar meta
       const deleteBtn = goalElement.querySelector(".delete-btn");
-      deleteBtn.addEventListener("click", () => {
+      deleteBtn.addEventListener("click", async () => {
         if (confirm("Tem certeza que deseja excluir esta meta?")) {
-          goals = goals.filter((g) => g.id !== goal.id);
-          saveGoalsToLocalStorage(); // Salvar após deletar meta
+          await deleteGoal(goal.id); // Usar função híbrida
           updateGoalsList();
           updateGoalsListModal();
         }
@@ -265,137 +1981,233 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Event listeners para transações
+  if (toggleTransactionsBtn) {
+    toggleTransactionsBtn.addEventListener("click", () => {
+      const cartaz2 = document.querySelector(".cartaz-2");
+      if (cartaz2) {
+        const isVisible = cartaz2.classList.contains("visible");
+        cartaz2.classList.toggle("visible");
+        toggleTransactionsBtn.textContent = isVisible
+          ? "Consultar Transações"
+          : "Ocultar Consulta";
 
-  function addTask(taskText) {
-    const text = taskText || taskInput.value.trim();
-    if (!text) {
-      alert("Digite uma tarefa!");
-      return;
-    }
-    const task = {
-      id: Date.now(),
-      text: text,
-      date: new Date().toLocaleDateString(),
-      dueDate: taskDueDate.value || "",
-      completed: false,
-      category: taskCategory.value || "outros",
-    };
-    tasks.push(task);
-    saveTasksToLocalStorage(); // Salvar após adicionar
-    updateTasksView();
-    taskInput.value = "";
-    taskDueDate.value = "";
-    taskCategory.value = "";
+        if (!isVisible) {
+          updateTransactionsView();
+          updateFinancialSummary();
+        }
+      }
+    });
   }
-  // Adiciona tarefa ao clicar no botão
-  addBtn.addEventListener("click", () => {
-    addTask();
+
+  // Event listeners para filtros de transações
+  if (filterTransactionType) {
+    filterTransactionType.addEventListener("change", updateTransactionsView);
+  }
+  if (filterTransactionCategory) {
+    filterTransactionCategory.addEventListener("change", updateTransactionsView);
+  }
+
+  // Event listeners para metas
+  if (addGoalBtn) {
+    addGoalBtn.addEventListener("click", addGoal);
+  }
+
+  // Event listener para mostrar/ocultar metas e orçamentos
+  if (toggleGoalsBtn) {
+    toggleGoalsBtn.addEventListener("click", () => {
+      const cartazGoals = document.querySelector(".cartaz-goals");
+      if (cartazGoals) {
+        const isVisible = cartazGoals.classList.contains("visible");
+        cartazGoals.classList.toggle("visible");
+        toggleGoalsBtn.textContent = isVisible
+          ? "Metas e Orçamentos"
+          : "Ocultar Metas";
+
+        if (!isVisible) {
+          updateGoalsList();
+          updateBudgetList();
+        }
+      }
+    });
+  }
+
+  // Event listeners para gráficos e estatísticas
+  const toggleGraphicsBtn = document.querySelectorAll('.toggle-goals-btn');
+  const graphicsModal = document.getElementById('modal-graphics');
+  const closeModalGraphics = document.querySelector('.close-modal-graphics');
+  const updateGraphicsBtn = document.querySelector('.update-graphics-btn');
+  const graphicsType = document.getElementById('graphicsType');
+
+  // Abrir modal de gráficos
+  toggleGraphicsBtn.forEach(btn => {
+    btn.addEventListener('click', function() {
+      if (btn.textContent.includes('Gráficos')) {
+        if (graphicsModal) {
+          graphicsModal.style.display = 'flex';
+          updateStatistics();
+          renderFinanceChart();
+        }
+      }
+    });
   });
 
-  function updateTasksView() {
-    // Só mostra tarefas no modal
-    const modalTasksView = document.querySelector('#modal-tarefas .tasks-view');
-    if (!modalTasksView) return;
-    modalTasksView.innerHTML = "";
-    const filterStatusValue = filterStatus.value;
-    const filterCategoryValue = filterCategory.value;
-    tasks
-      .filter((task) => {
-        if (filterStatusValue === "ativas" && task.completed) return false;
-        if (filterStatusValue === "concluidas" && !task.completed) return false;
-        if (filterCategoryValue && task.category !== filterCategoryValue) return false;
-        return true;
-      })
-      .forEach((task) => {
-        const taskElement = document.createElement("div");
-        taskElement.classList.add("task-item");
-        const daysLeft = task.dueDate
-          ? Math.ceil((new Date(task.dueDate) - new Date()) / (1000 * 60 * 60 * 24))
-          : null;
-        if (daysLeft !== null) {
-          if (daysLeft < 0) {
-            taskElement.classList.add("task-overdue");
-          } else if (daysLeft <= 2) {
-            taskElement.classList.add("task-urgent");
-          } else if (daysLeft <= 5) {
-            taskElement.classList.add("task-warning");
-          }
-        }
-        taskElement.innerHTML = `
-          <div class="task-content ${task.completed ? "completed" : ""}">
-            <input type="checkbox" ${task.completed ? "checked" : ""} />
-            <span class="task-text">${task.text}</span>
-            <span class="task-category">${task.category}</span>
-            ${
-              task.dueDate
-                ? `<span class="task-due-date ${daysLeft < 0 ? "overdue" : ""}">
-                    ${daysLeft < 0 ? "Atrasada" : daysLeft === 0 ? "Hoje" : daysLeft === 1 ? "Amanhã" : `${daysLeft} dias`}
-                  </span>`
-                : ""
-            }
-            <span class="task-date">${task.date}</span>
-          </div>
-          <div class="task-actions">
-            <button class="edit-btn">✏️</button>
-            <button class="delete-btn">❌</button>
-          </div>
-        `;
-        const checkbox = taskElement.querySelector('input[type="checkbox"]');
-        checkbox.addEventListener("change", () => {
-          task.completed = checkbox.checked;
-          taskElement.classList.toggle("completed");
-          saveTasksToLocalStorage(); // Salvar após completar/descompletar
-          updateTasksView();
-        });
-        const editBtn = taskElement.querySelector(".edit-btn");
-        editBtn.addEventListener("click", () => {
-          const spanElement = taskElement.querySelector(".task-text");
-          const currentText = spanElement.textContent;
-          const inputElement = document.createElement("input");
-          inputElement.type = "text";
-          inputElement.value = currentText;
-          inputElement.classList.add("edit-input");
-          const saveBtn = document.createElement("button");
-          saveBtn.classList.add("save-btn");
-          saveBtn.textContent = "💾";
-          spanElement.replaceWith(inputElement);
-          editBtn.replaceWith(saveBtn);
-          saveBtn.addEventListener("click", () => {
-            const newText = inputElement.value.trim();
-            if (newText) {
-              task.text = newText;
-              saveTasksToLocalStorage(); // Salvar após editar
-              updateTasksView();
-            }
-          });
-        });
-        const deleteBtn = taskElement.querySelector(".delete-btn");
-        deleteBtn.addEventListener("click", () => {
-          tasks = tasks.filter((t) => t.id !== task.id);
-          saveTasksToLocalStorage(); // Salvar após deletar
-          updateTasksView();
-        });
-        modalTasksView.appendChild(taskElement);
-      });
+  // Fechar modal de gráficos
+  if (closeModalGraphics) {
+    closeModalGraphics.addEventListener('click', () => {
+      graphicsModal.style.display = 'none';
+    });
   }
 
-  function addTransaction() {
+  // Fechar modal clicando fora
+  if (graphicsModal) {
+    graphicsModal.addEventListener('click', (e) => {
+      if (e.target === graphicsModal) {
+        graphicsModal.style.display = 'none';
+      }
+    });
+  }
+
+  // Atualizar gráfico quando mudança de tipo
+  if (updateGraphicsBtn) {
+    updateGraphicsBtn.addEventListener('click', () => {
+      const selectedType = graphicsType?.value || 'bar';
+      renderFinanceChart(selectedType);
+    });
+  }
+
+  // Mudança automática de tipo de gráfico
+  if (graphicsType) {
+    graphicsType.addEventListener('change', (e) => {
+      renderFinanceChart(e.target.value);
+    });
+  }
+
+  // Event listeners para orçamentos
+  if (addBudgetBtn) {
+    addBudgetBtn.addEventListener("click", addBudget);
+  }
+
+  // Event listeners para adicionar transação
+  if (addTransactionBtn) {
+    addTransactionBtn.addEventListener("click", addTransaction);
+  }
+
+  // Event listener para Enter no input de valor
+  if (valueInput) {
+    valueInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        addTransaction();
+      }
+    });
+  }
+
+  // Event listeners para filtros de tarefas
+  if (filterStatus) {
+    filterStatus.addEventListener("change", updateTasksView);
+  }
+  if (filterCategory) {
+    filterCategory.addEventListener("change", updateTasksView);
+  }
+
+  // Event listeners para inputs de metas (navegação com Enter)
+  if (goalAmount && goalDescription) {
+    goalAmount.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        goalDescription.focus();
+      }
+    });
+  }
+
+  if (goalDescription && goalDate) {
+    goalDescription.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        goalDate.focus();
+      }
+    });
+  }
+
+  if (goalDate) {
+    goalDate.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        addGoal();
+      }
+    });
+  }
+
+
+  async function addTask(taskText) {
+    // Prevenir duplos cliques
+    if (isAddingTask) return;
+    isAddingTask = true;
+    
+    try {
+      const text = taskText || taskInput.value.trim();
+      if (!text) {
+        showError("Digite uma tarefa!");
+        return;
+      }
+      
+      // Gerar ID único com timestamp mais preciso + número aleatório
+      const uniqueId = generateUniqueId();
+      
+      const task = {
+        id: uniqueId,
+        text: text,
+        date: new Date().toLocaleDateString(),
+        dueDate: taskDueDate.value || "",
+        completed: false,
+        category: taskCategory.value || "outros",
+      };
+      
+      console.log('➕ Adicionando tarefa:', task.text);
+      
+      // Adicionar à lista local
+      tasks.push(task);
+      
+      // Salvar usando o novo sistema de persistência
+      if (persistenceManager) {
+        await persistenceManager.saveTask(task);
+        console.log('✅ Tarefa salva via PersistenceManager');
+      }
+      
+      showSuccess(`Tarefa "${task.text}" adicionada com sucesso!`);
+      
+      updateTasksView();
+      taskInput.value = "";
+      taskDueDate.value = "";
+      taskCategory.value = "";
+      
+    } catch (error) {
+      console.error('❌ Erro ao adicionar tarefa:', error);
+    } finally {
+      // Liberar o lock após processamento
+      setTimeout(() => { isAddingTask = false; }, 100);
+    }
+  }
+
+  async function addTransaction() {
+    const valueInput = document.getElementById("valueInput");
+    const descriptionInput = document.getElementById("descriptionInput");
+    const transactionType = document.getElementById("transactionType");
+    const transactionCategory = document.getElementById("transactionCategory");
+    
     const value = parseFloat(valueInput.value);
     const description = descriptionInput.value.trim();
     const category = transactionCategory.value;
 
     if (isNaN(value) || value <= 0) {
-      alert("Por favor, insira um valor válido maior que zero");
+      showError("Por favor, insira um valor válido maior que zero");
       return;
     }
 
     if (!category) {
-      alert("Por favor, selecione uma categoria");
+      showError("Por favor, selecione uma categoria");
       return;
     }
 
     const transaction = {
-      id: Date.now(),
+      id: generateUniqueId(),
       value: value,
       description: description || "...",
       type: transactionType.value,
@@ -403,17 +2215,61 @@ document.addEventListener("DOMContentLoaded", () => {
       date: new Date().toLocaleDateString(),
     };
 
+    console.log('💰 Adicionando transação:', transaction.description, 'R$', transaction.value);
+
+    // Adicionar à lista local
     transactions.push(transaction);
-    saveTransactionsToLocalStorage(); // Salvar após adicionar transação
+    
+    // Salvar usando o novo sistema de persistência
+    if (persistenceManager) {
+      await persistenceManager.saveTransaction(transaction);
+      console.log('✅ Transação salva via PersistenceManager');
+    }
+    
+    // Mostrar notificação de sucesso
+    const typeText = transaction.type === 'receita' ? 'Receita' : 
+                     transaction.type === 'despesa' ? 'Despesa' : 'Saldo';
+    showSuccess(`${typeText} de R$ ${transaction.value.toFixed(2)} adicionada com sucesso!`);
+    
+    // Atualizar todas as views financeiras imediatamente
     updateFinancialSummary();
     updateTransactionsView();
+    
+    // Forçar múltiplas atualizações para garantir persistência visual
+    setTimeout(() => {
+      updateFinancialSummary();
+    }, 100);
+    
+    setTimeout(() => {
+      updateFinancialSummary();
+      console.log('💰 Resumo financeiro re-atualizado após transação');
+    }, 300);
+    
+    setTimeout(() => {
+      updateFinancialSummary();
+    }, 500);
+    
     clearTransactionForm();
   }
 
   function updateFinancialSummary() {
+    // Sempre obter os elementos do DOM quando a função for chamada
+    const balanceElement = document.querySelector(".balance");
+    const savingsBalanceElement = document.querySelector(".savings-balance");
+    const transactionsBalanceElement = document.querySelector(".transactions-balance");
+    
+    if (!balanceElement || !savingsBalanceElement || !transactionsBalanceElement) {
+      console.log('⚠️ Elementos de balanço não encontrados no DOM');
+      // Tentar novamente após um delay
+      setTimeout(() => {
+        updateFinancialSummary();
+      }, 200);
+      return;
+    }
+
     const summary = transactions.reduce(
       (acc, transaction) => {
-        const value = transaction.value;
+        const value = parseFloat(transaction.value) || 0;
 
         if (transaction.type === "saldo" && transaction.category === "saldo") {
           acc.savings += value;
@@ -431,17 +2287,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const totalBalance = summary.savings + summary.transactions;
 
+    // Atualizar elementos da tela
     balanceElement.textContent = formatCurrency(totalBalance);
     savingsBalanceElement.textContent = formatCurrency(summary.savings);
-    transactionsBalanceElement.textContent = formatCurrency(
-      summary.transactions
-    );
+    transactionsBalanceElement.textContent = formatCurrency(summary.transactions);
 
+    // Aplicar cores baseadas nos valores
     balanceElement.style.color = totalBalance >= 0 ? "#28a745" : "#dc3545";
-    savingsBalanceElement.style.color =
-      summary.savings >= 0 ? "#28a745" : "#dc3545";
-    transactionsBalanceElement.style.color =
-      summary.transactions >= 0 ? "#28a745" : "#dc3545";
+    savingsBalanceElement.style.color = summary.savings >= 0 ? "#28a745" : "#dc3545";
+    transactionsBalanceElement.style.color = summary.transactions >= 0 ? "#28a745" : "#dc3545";
+
+    console.log('💰 Resumo financeiro atualizado:', summary, 'Total:', totalBalance);
+    
+    // Forçar atualização visual com elementos frescos do DOM
+    setTimeout(() => {
+      const freshBalanceElement = document.querySelector(".balance");
+      const freshSavingsBalanceElement = document.querySelector(".savings-balance");
+      const freshTransactionsBalanceElement = document.querySelector(".transactions-balance");
+      
+      if (freshBalanceElement) freshBalanceElement.textContent = formatCurrency(totalBalance);
+      if (freshSavingsBalanceElement) freshSavingsBalanceElement.textContent = formatCurrency(summary.savings);
+      if (freshTransactionsBalanceElement) freshTransactionsBalanceElement.textContent = formatCurrency(summary.transactions);
+    }, 100);
   }
 
   function formatCurrency(value) {
@@ -456,18 +2323,32 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function clearTransactionForm() {
-    valueInput.value = "";
-    descriptionInput.value = "";
-    transactionType.value = "receita";
-    transactionCategory.value = "";
+    const valueInput = document.getElementById("valueInput");
+    const descriptionInput = document.getElementById("descriptionInput");
+    const transactionType = document.getElementById("transactionType");
+    const transactionCategory = document.getElementById("transactionCategory");
+    
+    if (valueInput) valueInput.value = "";
+    if (descriptionInput) descriptionInput.value = "";
+    if (transactionType) transactionType.value = "receita";
+    if (transactionCategory) transactionCategory.value = "";
   }
 
   function updateTransactionsView() {
-    if (!transactionsTimeline) return;
+    // Sempre obter os elementos do DOM quando a função for chamada
+    const transactionsTimeline = document.querySelector(".transactions-timeline");
+    const filterTransactionType = document.getElementById("filterTransactionType");
+    const filterTransactionCategory = document.getElementById("filterTransactionCategory");
+    
+    if (!transactionsTimeline) {
+      console.log('⚠️ Timeline de transações não encontrada no DOM');
+      return;
+    }
+    
     transactionsTimeline.innerHTML = "";
 
-    const typeFilter = filterTransactionType.value;
-    const categoryFilter = filterTransactionCategory.value;
+    const typeFilter = filterTransactionType?.value || "todas";
+    const categoryFilter = filterTransactionCategory?.value || "";
 
     const filteredTransactions = transactions.filter((transaction) => {
       const matchesType =
@@ -512,9 +2393,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const deleteBtn = transactionElement.querySelector(
         ".delete-transaction-btn"
       );
-      deleteBtn.addEventListener("click", () => {
-        transactions = transactions.filter((t) => t.id !== transaction.id);
-        saveTransactionsToLocalStorage(); // Salvar após deletar transação
+      deleteBtn.addEventListener("click", async () => {
+        await deleteTransaction(transaction.id); // Usar função híbrida
         updateFinancialSummary();
         updateTransactionsView();
       });
@@ -523,7 +2403,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function addGoal() {
+  async function addGoal() {
     const amount = parseFloat(goalAmount.value);
     const description = goalDescription.value.trim();
     const date = goalDate.value;
@@ -544,7 +2424,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const goal = {
-      id: Date.now(),
+      id: generateUniqueId(),
       amount: Number(amount),
       description,
       date,
@@ -552,12 +2432,12 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     goals.push(goal);
-    saveGoalsToLocalStorage(); // Salvar após adicionar meta
+    await saveGoal(goal); // Usar função para salvar meta individual
     updateGoalsList();
     clearGoalForm();
   }
 
-  function addBudget() {
+  async function addBudget() {
     const category = budgetCategory.value;
     const limit = parseFloat(budgetLimit.value);
 
@@ -571,14 +2451,14 @@ document.addEventListener("DOMContentLoaded", () => {
       existingBudget.limit = limit;
     } else {
       budgets.push({
-        id: Date.now(),
+        id: generateUniqueId(),
         category,
         limit,
         spent: 0,
       });
     }
 
-    saveBudgetsToLocalStorage(); // Salvar após adicionar/atualizar orçamento
+    await saveBudgets(); // Usar função híbrida
     updateBudgetList();
     clearBudgetForm();
   }
@@ -618,13 +2498,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const addSavingsBtn = goalElement.querySelector(".add-savings-btn");
       const deleteBtn = goalElement.querySelector(".delete-btn");
 
-      addSavingsBtn.addEventListener("click", () => {
-        const amount = parseFloat(
-          prompt("Quanto você quer adicionar à poupança?")
-        );
-        if (!isNaN(amount) && amount > 0) {
+      addSavingsBtn.addEventListener("click", async () => {
+        const amount = await showValueInput("Valor da poupança (R$)", "Adicionar à Poupança");
+        if (amount !== null && amount > 0) {
           const transaction = {
-            id: Date.now(),
+            id: generateUniqueId(),
             value: amount,
             description: `Poupança para ${goal.description}`,
             type: "saldo",
@@ -634,18 +2512,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
           transactions.push(transaction);
           goal.saved += amount;
-          saveTransactionsToLocalStorage(); // Salvar transação
-          saveGoalsToLocalStorage(); // Salvar meta atualizada
+          await saveTransaction(transaction); // Usar função individual
+          await saveGoal(goal); // Usar função individual
           updateFinancialSummary();
           updateTransactionsView();
           updateGoalsList();
+          showSuccess(`R$ ${amount.toFixed(2)} adicionado à meta "${goal.description}"!`);
         }
       });
 
-      deleteBtn.addEventListener("click", () => {
+      deleteBtn.addEventListener("click", async () => {
         if (confirm("Tem certeza que deseja excluir esta meta?")) {
-          goals = goals.filter((g) => g.id !== goal.id);
-          saveGoalsToLocalStorage(); // Salvar após deletar meta
+          await deleteGoal(goal.id); // Usar função híbrida
           updateGoalsList();
         }
       });
@@ -691,11 +2569,11 @@ document.addEventListener("DOMContentLoaded", () => {
       budgetList.appendChild(budgetElement);
 
       const addExpenseBtn = budgetElement.querySelector(".add-expense-btn");
-      addExpenseBtn.addEventListener("click", () => {
-        const amount = parseFloat(prompt("Qual o valor do gasto?"));
-        if (!isNaN(amount) && amount > 0) {
+      addExpenseBtn.addEventListener("click", async () => {
+        const amount = await showValueInput("Valor do gasto (R$)", "Adicionar Gasto");
+        if (amount !== null && amount > 0) {
           const transaction = {
-            id: Date.now(),
+            id: generateUniqueId(),
             value: amount,
             description: `Gasto em ${budget.category}`,
             type: "despesa",
@@ -704,18 +2582,19 @@ document.addEventListener("DOMContentLoaded", () => {
           };
 
           transactions.push(transaction);
+          await saveTransaction(transaction); // Usar função individual
           updateFinancialSummary();
           updateTransactionsView();
           updateBudgetList();
+          showSuccess(`Gasto de R$ ${amount.toFixed(2)} adicionado na categoria "${budget.category}"!`);
         }
       });
 
       budgetElement
         .querySelector(".delete-btn")
-        .addEventListener("click", () => {
+        .addEventListener("click", async () => {
           if (confirm("Tem certeza que deseja excluir este orçamento?")) {
-            budgets = budgets.filter((b) => b.id !== budget.id);
-            saveBudgetsToLocalStorage(); // Salvar após deletar orçamento
+            await deleteBudget(budget.id); // Usar função híbrida
             updateBudgetList();
           }
         });
@@ -732,330 +2611,220 @@ document.addEventListener("DOMContentLoaded", () => {
     budgetCategory.value = "";
     budgetLimit.value = "";
   }
-    addBtn.addEventListener("click", () => {
-      const taskText = taskInput.value.trim();
-      if (taskText) {
-        addTask(taskText);
-        taskInput.value = "";
-      }
+
+  async function setupAdditionalEventListeners() {
+    // Event listener para botão de debug
+    const debugBtn = document.getElementById('debugBtn');
+    if (debugBtn) {
+      debugBtn.addEventListener('click', async () => {
+        console.log('🔧 Debug iniciado pelo usuário');
+        await debugDataPersistence();
+        await forceReloadData();
+        
+        // Debug específico do resumo financeiro
+        console.log('💰 Debug do resumo financeiro:');
+        console.log('- Transações:', transactions);
+        updateFinancialSummary();
+        setTimeout(() => {
+          const balanceElement = document.querySelector(".balance");
+          const savingsBalanceElement = document.querySelector(".savings-balance");
+          const transactionsBalanceElement = document.querySelector(".transactions-balance");
+          
+          console.log('- Balance Element:', balanceElement?.textContent);
+          console.log('- Savings Element:', savingsBalanceElement?.textContent);
+          console.log('- Transactions Element:', transactionsBalanceElement?.textContent);
+        }, 500);
+      });
+    }
+
+    // Event listeners para links sociais (abrir no navegador externo)
+    const socialLinks = document.querySelectorAll('.social-icon');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const url = link.getAttribute('data-url');
+        if (url && isElectron && window.electronAPI.openExternal) {
+          console.log('🔗 Abrindo link social no navegador externo:', url);
+          await window.electronAPI.openExternal(url);
+        } else if (url) {
+          // Fallback para modo web
+          window.open(url, '_blank');
+        }
+      });
     });
+  }
 
-    // Load saved data
-    console.log('🚀 Inicializando aplicação...');
-    loadAllData(); // Carrega todos os dados do localStorage
-    
-    // Debug inicial
-    debugLocalStorage();
-
-    // Initial updates
-    updateTasksView();
-    updateTransactionsView();
-    updateFinancialSummary();
-    updateGoalsList();
-    updateBudgetList();
-    
-    console.log('✅ Aplicação inicializada!');
-    
-    // Event listeners que estavam fora do DOMContentLoaded
-    filterStatus.addEventListener("change", updateTasksView);
-    filterCategory.addEventListener("change", updateTasksView);
-    addTransactionBtn.addEventListener("click", addTransaction);
-
-    valueInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        addTransaction();
-      }
-    });
-
-    toggleTransactionsBtn.addEventListener("click", () => {
-      const isVisible = cartaz2.classList.contains("visible");
-      cartaz2.classList.toggle("visible");
-      toggleTransactionsBtn.textContent = isVisible
-        ? "Consultar Transações"
-        : "Ocultar Consulta";
-
-      if (!isVisible) {
+  // Função para recarregar dados (mantida para compatibilidade)
+  async function forceReloadData() {
+    console.log('🔄 Forçando recarregamento de dados...');
+    if (persistenceManager) {
+      const data = await persistenceManager.loadAllData();
+      if (data) {
+        tasks = data.tasks;
+        transactions = data.transactions;
+        goals = data.goals;
+        budgets = data.budgets;
+        
+        updateTasksView();
         updateTransactionsView();
-      }
-    });
-
-    filterTransactionType.addEventListener("change", updateTransactionsView);
-    filterTransactionCategory.addEventListener("change", updateTransactionsView);
-    
-    // Adicionar todos os outros event listeners
-    addGoalBtn.addEventListener("click", () => {
-      addGoal();
-    });
-
-    goalAmount.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        goalDescription.focus();
-      }
-    });
-
-    goalDescription.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        goalDate.focus();
-      }
-    });
-
-    goalDate.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        addGoal();
-      }
-    });
-
-    addBudgetBtn.addEventListener("click", addBudget);
-
-    toggleGoalsBtn.addEventListener("click", () => {
-      const isVisible = cartazGoals.classList.contains("visible");
-      cartazGoals.classList.toggle("visible");
-      toggleGoalsBtn.textContent = isVisible
-        ? "Metas e Orçamentos"
-        : "Ocultar Metas";
-
-      if (!isVisible) {
+        updateFinancialSummary();
         updateGoalsList();
         updateBudgetList();
+        
+        console.log('✅ Dados recarregados!');
       }
-    });
+    }
+  }
 
-    // Inicializar gráficos e estatísticas
-    const toggleGraphicsBtn = document.querySelectorAll('.toggle-goals-btn');
-    const graphicsModal = document.getElementById('modal-graphics');
+  // ========== NOVA FUNÇÃO DE DEBUG ==========
+  async function debugDataPersistence() {
+    console.log('🔧 === DEBUG DE PERSISTÊNCIA ===');
+    
+    if (persistenceManager) {
+      await persistenceManager.verifyDataIntegrity();
+    }
+    
+    console.log('📊 Arrays locais:');
+    console.log('- tasks:', tasks.length);
+    console.log('- transactions:', transactions.length);
+    console.log('- goals:', goals.length);
+    console.log('- budgets:', budgets.length);
+    
+    if (isElectron && window.electronAPI) {
+      console.log('🖥️ Testando conexão SQLite...');
+      const test = await window.electronAPI.testConnection();
+      console.log('Resultado:', test);
+    }
+  }
 
-    toggleGraphicsBtn.forEach(btn => {
-      btn.addEventListener('click', function() {
-        if (btn.textContent.includes('Gráficos')) {
-          graphicsModal.style.display = 'flex';
-          updateStatistics();
-          renderFinanceChart();
-        }
-      });
-    });
+  // ========== FUNÇÕES FALTANTES ==========
+  
+  async function addGoal() {
+    const goalAmount = document.getElementById("goalAmount");
+    const goalDescription = document.getElementById("goalDescription");
+    const goalDate = document.getElementById("goalDate");
+    
+    const amount = parseFloat(goalAmount.value);
+    const description = goalDescription.value.trim();
+    const date = goalDate.value;
 
-    // Função para renderizar o gráfico com dados reais
-    function renderFinanceChart(type = null) {
-      const chartType = type || document.getElementById('graphicsType').value;
-      const ctx = document.getElementById('financeChart').getContext('2d');
-
-      // Calcula os valores reais das finanças
-      const receitas = transactions
-        .filter(t => t.type === 'receita')
-        .reduce((sum, t) => sum + t.value, 0);
-      const despesas = transactions
-        .filter(t => t.type === 'despesa')
-        .reduce((sum, t) => sum + t.value, 0);
-      const poupanca = transactions
-        .filter(t => t.type === 'saldo' && t.category === 'saldo')
-        .reduce((sum, t) => sum + t.value, 0);
-
-      // Destroi gráfico anterior se existir
-      if (window.financeChartInstance) window.financeChartInstance.destroy();
-      window.financeChartInstance = new Chart(ctx, {
-        type: chartType,
-        data: {
-          labels: ['Receitas', 'Despesas', 'Poupança'],
-          datasets: [{
-            label: 'Valores',
-            data: [receitas, despesas, poupanca],
-            backgroundColor: ['#4caf50', '#f44336', '#2196f3'],
-          }]
-        },
-        options: {
-          responsive: false,
-          plugins: {
-            legend: { display: false }
-          }
-        }
-      });
+    if (isNaN(amount) || amount <= 0) {
+      showError("Por favor, insira um valor válido maior que zero");
+      return;
     }
 
-    // Event listeners para gráficos
-    document.getElementById('graphicsType').addEventListener('change', e => {
-      renderFinanceChart(e.target.value);
-    });
-    document.querySelector('.update-graphics-btn').addEventListener('click', () => {
-      renderFinanceChart();
-    });
-
-    // Atualiza estatísticas com dados reais
-    function updateStatistics() {
-      const receitas = transactions
-        .filter(t => t.type === 'receita')
-        .reduce((sum, t) => sum + t.value, 0);
-      const despesasArray = transactions
-        .filter(t => t.type === 'despesa')
-        .map(t => t.value);
-      const despesas = despesasArray.reduce((sum, v) => sum + v, 0);
-
-      // Categoria mais gasta
-      let categoriaMaisGasta = '-';
-      if (despesas > 0) {
-        const categorias = {};
-        transactions
-          .filter(t => t.type === 'despesa')
-          .forEach(t => {
-            categorias[t.category] = (categorias[t.category] || 0) + t.value;
-          });
-        const entries = Object.entries(categorias);
-        if (entries.length > 0) {
-          categoriaMaisGasta = entries.sort((a, b) => b[1] - a[1])[0][0];
-        }
-      }
-
-      // Meta de poupança (soma das metas)
-      const meta = goals.reduce((sum, g) => sum + (parseFloat(g.amount) || 0), 0);
-
-      // Média das despesas
-      const mediaDespesas = despesasArray.length > 0 ? despesas / despesasArray.length : 0;
-
-      // Quantidade de transações
-      const qtdTransacoes = transactions.length;
-
-      // Percentual receitas vs despesas
-      const percentual = receitas > 0 ? ((despesas / receitas) * 100).toFixed(1) : 0;
-
-      // Maior e menor despesa
-      const maiorDespesa = despesasArray.length > 0 ? Math.max(...despesasArray) : 0;
-      const menorDespesa = despesasArray.length > 0 ? Math.min(...despesasArray) : 0;
-
-      document.getElementById('stat-receitas').textContent = `R$ ${receitas.toFixed(2)}`;
-      document.getElementById('stat-despesas').textContent = `R$ ${despesas.toFixed(2)}`;
-      document.getElementById('stat-categoria').textContent = categoriaMaisGasta;
-      document.getElementById('stat-meta').textContent = `R$ ${meta.toFixed(2)}`;
-      document.getElementById('stat-media-despesas').textContent = `R$ ${mediaDespesas.toFixed(2)}`;
-      document.getElementById('stat-qtd-transacoes').textContent = qtdTransacoes;
-      document.getElementById('stat-percentual').textContent = `${percentual}%`;
-      document.getElementById('stat-maior-despesa').textContent = `R$ ${maiorDespesa.toFixed(2)}`;
-      document.getElementById('stat-menor-despesa').textContent = `R$ ${menorDespesa.toFixed(2)}`;
-
-      // Animação de contagem
-      animateValue('stat-receitas', 0, receitas, 800, 'R$ ');
-      animateValue('stat-despesas', 0, despesas, 800, 'R$ ');
-      animateValue('stat-media-despesas', 0, mediaDespesas, 800, 'R$ ');
-      animateValue('stat-maior-despesa', 0, maiorDespesa, 800, 'R$ ');
-      animateValue('stat-menor-despesa', 0, menorDespesa, 800, 'R$ ');
+    if (!description) {
+      showError("Por favor, insira uma descrição para a meta");
+      return;
     }
 
-    // Função para atualizar subsetatísticas
-    function updateSubstats() {
-      // Receitas
-      const receitasArray = transactions.filter(t => t.type === 'receita').map(t => t.value);
-      const receitaMedia = receitasArray.length ? receitasArray.reduce((a,b)=>a+b,0)/receitasArray.length : 0;
-      const receitaMaior = receitasArray.length ? Math.max(...receitasArray) : 0;
-      const receitaMenor = receitasArray.length ? Math.min(...receitasArray) : 0;
-      const receitaQtd = receitasArray.length;
-      document.getElementById('substat-receita-media').textContent = `R$ ${receitaMedia.toFixed(2)}`;
-      document.getElementById('substat-receita-maior').textContent = `R$ ${receitaMaior.toFixed(2)}`;
-      document.getElementById('substat-receita-menor').textContent = `R$ ${receitaMenor.toFixed(2)}`;
-      document.getElementById('substat-receita-qtd').textContent = receitaQtd;
-
-      // Despesas
-      const despesasArray = transactions.filter(t => t.type === 'despesa').map(t => t.value);
-      const despesaMedia = despesasArray.length ? despesasArray.reduce((a,b)=>a+b,0)/despesasArray.length : 0;
-      const despesaMaior = despesasArray.length ? Math.max(...despesasArray) : 0;
-      const despesaMenor = despesasArray.length ? Math.min(...despesasArray) : 0;
-      const despesaQtd = despesasArray.length;
-      document.getElementById('substat-despesa-media').textContent = `R$ ${despesaMedia.toFixed(2)}`;
-      document.getElementById('substat-despesa-maior').textContent = `R$ ${despesaMaior.toFixed(2)}`;
-      document.getElementById('substat-despesa-menor').textContent = `R$ ${despesaMenor.toFixed(2)}`;
-      document.getElementById('substat-despesa-qtd').textContent = despesaQtd;
-
-      // Categoria mais gasta
-      let categoriaMaisGasta = '-';
-      let valorCategoria = 0;
-      let pctCategoria = 0;
-      if (despesasArray.length > 0) {
-        const categorias = {};
-        transactions.filter(t => t.type === 'despesa').forEach(t => {
-          categorias[t.category] = (categorias[t.category] || 0) + t.value;
-        });
-        const entries = Object.entries(categorias);
-        if (entries.length > 0) {
-          const [cat, val] = entries.sort((a, b) => b[1] - a[1])[0];
-          categoriaMaisGasta = cat;
-          valorCategoria = val;
-          pctCategoria = (val / despesasArray.reduce((a, b) => a + b, 0)) * 100;
-        }
-      }
-      document.getElementById('substat-categoria-valor').textContent = `R$ ${valorCategoria.toFixed(2)}`;
-      document.getElementById('substat-categoria-pct').textContent = `${pctCategoria.toFixed(1)}%`;
-
-      // Metas
-      const metasQtd = goals.length;
-      const metasMedia = metasQtd ? goals.reduce((a, g) => a + (parseFloat(g.amount) || 0), 0) / metasQtd : 0;
-      document.getElementById('substat-meta-qtd').textContent = metasQtd;
-      document.getElementById('substat-meta-media').textContent = `R$ ${metasMedia.toFixed(2)}`;
-
-      // Média das despesas
-      document.getElementById('substat-media-despesas-qtd').textContent = despesasArray.length;
-
-      // Qtd. de transações
-      const qtdReceitas = receitasArray.length;
-      const qtdDespesas = despesasArray.length;
-      const qtdSaldo = transactions.filter(t => t.type === 'saldo').length;
-      document.getElementById('substat-qtd-receitas').textContent = qtdReceitas;
-      document.getElementById('substat-qtd-despesas').textContent = qtdDespesas;
-      document.getElementById('substat-qtd-saldo').textContent = qtdSaldo;
-
-      // Percentual receitas vs despesas
-      const receitas = receitasArray.reduce((a, b) => a + b, 0);
-      const despesas = despesasArray.reduce((a, b) => a + b, 0);
-      document.getElementById('substat-percentual-receitas').textContent = `R$ ${receitas.toFixed(2)}`;
-      document.getElementById('substat-percentual-despesas').textContent = `R$ ${despesas.toFixed(2)}`;
+    if (!date) {
+      showError("Por favor, selecione uma data para a meta");
+      return;
     }
 
-    // Event listeners para estatísticas
-    document.querySelectorAll('.stat-item').forEach(item => {
-      item.addEventListener('click', function(e) {
-        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A') return;
-        const stat = item.getAttribute('data-stat');
-        const substats = document.getElementById(`substats-${stat}`);
-        if (substats) {
-          const isVisible = substats.style.display === 'block';
-          document.querySelectorAll('.substats').forEach(s => s.style.display = 'none');
-          substats.style.display = isVisible ? 'none' : 'block';
-          if (!isVisible) updateSubstats();
-        }
-      });
-    });
+    const goal = {
+      id: generateUniqueId(),
+      amount: amount,
+      description: description,
+      date: date,
+      saved: 0,
+    };
 
-    function animateValue(id, start, end, duration, prefix = '', suffix = '') {
-      const obj = document.getElementById(id);
-      if (!obj) return;
-      let startTimestamp = null;
-      const step = (timestamp) => {
-        if (!startTimestamp) startTimestamp = timestamp;
-        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-        const value = start + (end - start) * progress;
-        obj.textContent = prefix + value.toFixed(2) + suffix;
-        if (progress < 1) {
-          window.requestAnimationFrame(step);
+    console.log('🎯 Adicionando meta:', goal.description, 'R$', goal.amount);
+
+    goals.push(goal);
+    
+    if (persistenceManager) {
+      await persistenceManager.saveGoal(goal);
+      console.log('✅ Meta salva via PersistenceManager');
+    }
+
+    updateGoalsList();
+    updateGoalsListModal();
+    
+    // Limpar formulário
+    goalAmount.value = "";
+    goalDescription.value = "";
+    goalDate.value = "";
+    
+    showSuccess(`Meta "${description}" adicionada com sucesso!`);
+  }
+
+  async function addBudget() {
+    const budgetCategory = document.getElementById("budgetCategory");
+    const budgetLimit = document.getElementById("budgetLimit");
+    
+    const category = budgetCategory.value;
+    const limit = parseFloat(budgetLimit.value);
+
+    if (!category) {
+      showError("Por favor, selecione uma categoria");
+      return;
+    }
+
+    if (isNaN(limit) || limit <= 0) {
+      showError("Por favor, insira um valor válido maior que zero");
+      return;
+    }
+
+    // Verificar se já existe orçamento para esta categoria
+    const existingBudget = budgets.find(b => b.category === category);
+    if (existingBudget) {
+      const shouldReplace = await showConfirmation(
+        `Já existe um orçamento para ${category}. Deseja substituir?`,
+        'Orçamento Existente'
+      );
+      
+      if (shouldReplace) {
+        existingBudget.limit = limit;
+        
+        if (persistenceManager) {
+          await persistenceManager.saveBudget(existingBudget);
         }
+        
+        showSuccess(`Orçamento para ${category} atualizado com sucesso!`);
+      } else {
+        return;
+      }
+    } else {
+      const budget = {
+        id: generateUniqueId(),
+        category: category,
+        limit: limit,
+        spent: 0,
       };
-      window.requestAnimationFrame(step);
+
+      console.log('💰 Adicionando orçamento:', budget.category, 'R$', budget.limit);
+
+      budgets.push(budget);
+      
+      if (persistenceManager) {
+        await persistenceManager.saveBudget(budget);
+        console.log('✅ Orçamento salvo via PersistenceManager');
+      }
+      
+      showSuccess(`Orçamento para ${category} criado com sucesso!`);
     }
 
-    // Event listeners para modal de gráficos
-    const closeGraphicsModalBtn = document.querySelector('.close-modal-graphics');
+    updateBudgetList();
+    
+    // Limpar formulário
+    budgetCategory.value = "";
+    budgetLimit.value = "";
+  }
+  }
 
-    if (closeGraphicsModalBtn && graphicsModal) {
-      closeGraphicsModalBtn.addEventListener('click', () => {
-        graphicsModal.style.display = 'none';
-        // Opcional: destruir o gráfico ao fechar
-        if (window.financeChartInstance) window.financeChartInstance.destroy();
-      });
-    }
-
-    // Também fecha ao clicar fora do conteúdo do modal
-    if (graphicsModal) {
-      graphicsModal.addEventListener('click', (e) => {
-        if (e.target === graphicsModal) {
-          graphicsModal.style.display = 'none';
-          if (window.financeChartInstance) window.financeChartInstance.destroy();
-        }
-      });
-    }
-  });
-
+  // Expor funções para debug no console (apenas desenvolvimento)
+  if (typeof window !== 'undefined') {
+    window.debugApp = {
+      cleanDuplicates,
+      resetDatabase,
+      tasks: () => tasks,
+      transactions: () => transactions,
+      goals: () => goals,
+      budgets: () => budgets,
+      isElectron: () => isElectron
+    };
+    console.log('🔧 Funções de debug disponíveis em window.debugApp');
+  }

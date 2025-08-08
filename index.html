@@ -2,17 +2,37 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Minha Lista de Tarefas</title>
-    <meta name="description" content="Aplicativo de controle financeiro e lista de tarefas. Organize suas finanças, metas, orçamentos e tarefas de forma simples e visual.">
-    <meta name="keywords" content="finanças, controle financeiro, tarefas, metas, orçamentos, gráficos, estatísticas, organização, produtividade">
-    <meta name="author" content="Bruno Eduardo">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>TarefasCash - Gerenciador Financeiro</title>
+    <meta name="description" content="Aplicativo multiplataforma de controle financeiro e lista de tarefas. Organize suas finanças, metas, orçamentos e tarefas de forma simples e visual.">
+    <meta name="keywords" content="finanças, controle financeiro, tarefas, metas, orçamentos, gráficos, estatísticas, organização, produtividade, mobile, desktop">
+    <meta name="author" content="Bruno Eduardo - BonyDevup">
+    <meta name="theme-color" content="#00f7ff">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TarefasCash">
+    
+    <!-- Styles -->
     <link rel="stylesheet" href="styles.css" />
-    <!-- Fix manifest path -->
+    <!-- Mobile styles will be loaded dynamically by mobile-layout-manager.js -->
+    
+    <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json" />
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="build/icon.ico" />
+    <link rel="apple-touch-icon" href="build/icon.svg" />
+    
+    <!-- External Dependencies -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Capacitor Scripts (carregados condicionalmente) -->
+    <script type="module">
+      // Verificar se Capacitor está disponível e carregar
+      if (window.Capacitor) {
+        console.log('📱 Capacitor detectado, carregando plugins...');
+      }
+    </script>
   </head>
   <body>
     <div class="theme-switcher-container">
@@ -23,6 +43,7 @@
         <option value="matrix">Matrix</option>
         <option value="pastel">Pastel</option>
       </select>
+      <button id="debugBtn" class="debug-btn" title="Debug de Dados" style="margin-left: 10px; padding: 5px 10px; font-size: 12px; background: #007cba; color: white; border: none; border-radius: 3px; cursor: pointer;">🔧</button>
     </div>
     <div class="container">
       <div class="container-btns">
@@ -91,9 +112,9 @@
         <div class="financial-content">
           <div class="financial-form">
             <select id="transactionType">
-              <option value="receita">Adicionar Saldo</option>
               <option value="receita">Receita</option>
               <option value="despesa">Despesa</option>
+              <option value="saldo">Saldo</option>
             </select>
             <input
               type="number"
@@ -116,7 +137,7 @@
           </div>
           <div class="financial-summary">
             <div class="summary-item">
-              <h4>Resumo Total Transações</h4>
+              <h4>Saldo Total</h4>
               <div class="balance">R$ 0,00</div>
             </div>
             <div class="summary-item">
@@ -124,7 +145,7 @@
               <div class="savings-balance">R$ 0,00</div>
             </div>
             <div class="summary-item">
-              <h4>Saldo Total</h4>
+              <h4>Saldo Transações</h4>
               <div class="transactions-balance">R$ 0,00</div>
             </div>
           </div>
@@ -313,13 +334,125 @@
     </div>
 
     <div class="social-icons">
-      <a href="https://wa.me/123456789" class="social-icon whatsapp"><i class="fab fa-whatsapp"></i></a>
-        <a href="https://youtube.com" class="social-icon youtube"><i class="fab fa-youtube"></i></a>
-        <a href="https://facebook.com" class="social-icon facebook"><i class="fab fa-facebook-f"></i></a>
-        <a href="https://instagram.com" class="social-icon instagram"><i class="fab fa-instagram"></i></a>
+      <a href="https://wa.me/123456789" target="_blank" class="social-icon whatsapp" data-url="https://wa.me/123456789"><i class="fab fa-whatsapp"></i></a>
+        <a href="https://youtube.com" target="_blank" class="social-icon youtube" data-url="https://youtube.com"><i class="fab fa-youtube"></i></a>
+        <a href="https://facebook.com" target="_blank" class="social-icon facebook" data-url="https://facebook.com"><i class="fab fa-facebook-f"></i></a>
+        <a href="https://instagram.com" target="_blank" class="social-icon instagram" data-url="https://instagram.com"><i class="fab fa-instagram"></i></a>
     </div>
 
-    <script src="script.js">
+    <!-- Sistema de Notificações Compatível com Electron -->
+    <div id="notification-container" class="notification-container"></div>
+    
+    <!-- Modal de Confirmação Compatível com Electron -->
+    <div id="confirmation-modal" class="confirmation-modal" style="display: none;">
+      <div class="confirmation-content">
+        <h3 id="confirmation-title">Confirmar Ação</h3>
+        <p id="confirmation-message">Tem certeza que deseja continuar?</p>
+        <div class="confirmation-buttons">
+          <button id="confirm-yes" class="btn-confirm">Sim</button>
+          <button id="confirm-no" class="btn-cancel">Não</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input Field Reutilizável para Valores -->
+    <div id="value-input-overlay" class="value-input-overlay" style="display: none;">
+      <div class="value-input-content">
+        <h3 id="value-input-title">Insira o Valor</h3>
+        <input type="number" id="value-input-field" step="0.01" min="0.01" placeholder="0,00" />
+        <div class="value-input-buttons">
+          <button id="value-input-confirm" class="btn-confirm">Confirmar</button>
+          <button id="value-input-cancel" class="btn-cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Container para notificações móveis -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <!-- Scripts principais -->
+    <script src="persistence-manager.js"></script>
+    <!-- Mobile Layout Manager deve carregar ANTES do script principal -->
+    <script src="mobile-layout-manager.js"></script>
+    <script src="script.js"></script>
+    <script src="debug-persistence.js"></script>
+    
+    <!-- Script de inicialização mobile -->
+    <script>
+      // Aguardar carregamento do layout manager
+      window.addEventListener('layoutManagerReady', (event) => {
+        console.log('📱 Layout Manager pronto:', event.detail);
+        
+        // Inicializar funcionalidades específicas do layout
+        if (event.detail.currentLayout === 'mobile') {
+          initializeMobileFeatures();
+        } else {
+          initializeDesktopFeatures();
+        }
+      });
+      
+      // Funcionalidades específicas mobile
+      function initializeMobileFeatures() {
+        console.log('📱 Inicializando funcionalidades mobile...');
+        
+        // Tab navigation handler
+        window.addEventListener('tabChange', (event) => {
+          handleTabChange(event.detail.tab);
+        });
+        
+        // Setup mobile-specific interactions
+        setupMobileInteractions();
+      }
+      
+      // Funcionalidades específicas desktop
+      function initializeDesktopFeatures() {
+        console.log('🖥️ Inicializando funcionalidades desktop...');
+        // Manter comportamento atual para desktop
+      }
+      
+      // Manipular mudança de tabs
+      function handleTabChange(tabName) {
+        // Esconder todas as seções
+        document.querySelectorAll('.section').forEach(section => {
+          section.style.display = 'none';
+        });
+        
+        // Mostrar seção correspondente
+        switch(tabName) {
+          case 'dashboard':
+            document.getElementById('financial-section')?.style.setProperty('display', 'block');
+            break;
+          case 'tasks':
+            document.getElementById('task-section')?.style.setProperty('display', 'block');
+            break;
+          case 'finance':
+            document.getElementById('financial-section')?.style.setProperty('display', 'block');
+            break;
+          case 'goals':
+            document.getElementById('goals-section')?.style.setProperty('display', 'block');
+            break;
+          case 'stats':
+            document.getElementById('statistics-section')?.style.setProperty('display', 'block');
+            break;
+        }
+      }
+      
+      // Configurar interações mobile
+      function setupMobileInteractions() {
+        // Touch gestures, haptic feedback, etc.
+        console.log('📱 Configurando interações mobile...');
+        
+        // Adicionar suporte a gestos se necessário
+        if (window.mobileLayoutManager?.isCapacitor) {
+          setupCapacitorFeatures();
+        }
+      }
+      
+      // Configurar recursos específicos do Capacitor
+      function setupCapacitorFeatures() {
+        console.log('📱 Configurando recursos Capacitor...');
+        // Implementar recursos nativos aqui
+      }
     </script>
   </body>
 </html>
